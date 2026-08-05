@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useRepositorio } from "../../data/ProvedorDeDados";
 import type { PaginaDeServicos } from "../../data/servicoRepository";
+import type { Busca } from "../../domain/busca";
 import { formatarDataBr, hojeIso } from "../../domain/datas";
-import type { Busca } from "../../domain/interpretarBusca";
 import { prefixoDePlaca } from "../../domain/placa";
 import { TabelaServicos } from "../../ui/TabelaServicos";
 
@@ -17,18 +17,27 @@ interface Filtros {
   termo: string;
 }
 
-function descreverFiltros(filtros: Filtros): string {
-  if (filtros.tipo === "periodo") {
-    return `Período de ${formatarDataBr(filtros.de)} a ${formatarDataBr(filtros.ate)}`;
-  }
-  const rotulo = filtros.tipo === "carro" ? "Carro" : "Placa";
-  return `${rotulo}: ${filtros.termo}`;
+interface Relatorio {
+  pagina: PaginaDeServicos;
+  filtros: Filtros; // snapshot dos filtros usados na geração, não os da tela
 }
 
+function descreverFiltros(filtros: Filtros): string {
+  if (filtros.tipo === "periodo") {
+    const [de, ate] =
+      filtros.de <= filtros.ate ? [filtros.de, filtros.ate] : [filtros.ate, filtros.de];
+    return `Período de ${formatarDataBr(de)} a ${formatarDataBr(ate)}`;
+  }
+  const rotulo = filtros.tipo === "carro" ? "Carro" : "Placa";
+  return `${rotulo}: ${filtros.termo.toUpperCase()}`;
+}
+
+/** Datas invertidas são corrigidas em silêncio — inverter "De" e "Até" é deslize comum. */
 function paraBusca(filtros: Filtros): Busca | null {
   if (filtros.tipo === "periodo") {
     if (filtros.de === "" || filtros.ate === "") return null;
-    return { tipo: "data", de: filtros.de, ate: filtros.ate };
+    const [de, ate] = filtros.de <= filtros.ate ? [filtros.de, filtros.ate] : [filtros.ate, filtros.de];
+    return { tipo: "data", de, ate };
   }
   if (filtros.termo.trim() === "") return null;
   if (filtros.tipo === "carro") return { tipo: "carro", termo: filtros.termo };
@@ -43,22 +52,28 @@ export function RelatoriosPage({ aoVerHistorico }: { aoVerHistorico: (placa: str
     ate: hojeIso(),
     termo: "",
   });
-  const [resultado, setResultado] = useState<PaginaDeServicos | null>(null);
+  const [relatorio, setRelatorio] = useState<Relatorio | null>(null);
   const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   const alterar = (mudanca: Partial<Filtros>) => {
     setFiltros((atuais) => ({ ...atuais, ...mudanca }));
-    setResultado(null);
+    setRelatorio(null);
+    setErro(null);
   };
 
   const gerar = async () => {
     const busca = paraBusca(filtros);
     if (busca === null) return;
+    const filtrosUsados = filtros;
     setGerando(true);
+    setErro(null);
     try {
-      setResultado(await repositorio.buscar(busca, 0, LIMITE_DO_RELATORIO));
+      const pagina = await repositorio.buscar(busca, 0, LIMITE_DO_RELATORIO);
+      setRelatorio({ pagina, filtros: filtrosUsados });
     } catch (causa) {
       console.error("Relatório falhou:", causa);
+      setErro("Não foi possível gerar o relatório — tente novamente.");
     } finally {
       setGerando(false);
     }
@@ -110,38 +125,41 @@ export function RelatoriosPage({ aoVerHistorico }: { aoVerHistorico: (placa: str
               {filtros.tipo === "carro" ? "Descrição do carro" : "Placa"}
               <input
                 type="text"
+                className="entrada-maiuscula"
                 value={filtros.termo}
                 placeholder={filtros.tipo === "carro" ? "Ex.: GOL 1.0" : "Ex.: ABC1234"}
-                onChange={(evento) => alterar({ termo: evento.target.value.toUpperCase() })}
+                onChange={(evento) => alterar({ termo: evento.target.value })}
               />
             </label>
           )}
           <button type="submit" className="botao-principal" disabled={gerando}>
             {gerando ? "Gerando…" : "Gerar relatório"}
           </button>
-          {resultado !== null && (
+          {relatorio !== null && (
             <button type="button" className="botao-secundario" onClick={() => window.print()}>
               🖨 Imprimir
             </button>
           )}
         </form>
+        {erro !== null && <p className="mensagem-erro">{erro}</p>}
       </div>
-      {resultado !== null && (
+      {relatorio !== null && (
         <>
           <header className="cabecalho-relatorio">
             <h2 className="so-impressao">Super Troca de Óleo Prado's</h2>
             <p>
-              {descreverFiltros(filtros)} · {resultado.total.toLocaleString("pt-BR")} serviço(s) ·
-              emitido em {formatarDataBr(hojeIso())}
+              {descreverFiltros(relatorio.filtros)} ·{" "}
+              {relatorio.pagina.total.toLocaleString("pt-BR")} serviço(s) · emitido em{" "}
+              {formatarDataBr(hojeIso())}
             </p>
-            {resultado.total > LIMITE_DO_RELATORIO && (
+            {relatorio.pagina.total > LIMITE_DO_RELATORIO && (
               <p className="aviso">
                 Mostrando os primeiros {LIMITE_DO_RELATORIO.toLocaleString("pt-BR")} — refine o
                 filtro para um relatório completo.
               </p>
             )}
           </header>
-          <TabelaServicos itens={resultado.itens} aoClicarNaPlaca={aoVerHistorico} />
+          <TabelaServicos itens={relatorio.pagina.itens} aoClicarNaPlaca={aoVerHistorico} />
         </>
       )}
     </section>

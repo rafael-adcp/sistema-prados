@@ -1,15 +1,29 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Carregando } from "../ui/Carregando";
 import { BackupService } from "./backupService";
+import { ConfigRepository } from "./configRepository";
 import { obterBanco } from "./database";
+import { ImportacaoService } from "./importacaoService";
 import { ServicoRepository } from "./servicoRepository";
 
-interface Dados {
+export interface Dados {
   repositorio: ServicoRepository;
   backup: BackupService;
+  importacao: ImportacaoService;
 }
 
 const ContextoDeDados = createContext<Dados | null>(null);
+
+/** Só para testes: injeta serviços prontos (fakes ou sobre SQLite em memória). */
+export function ProvedorDeDadosParaTeste({
+  dados,
+  children,
+}: {
+  dados: Dados;
+  children: ReactNode;
+}) {
+  return <ContextoDeDados.Provider value={dados}>{children}</ContextoDeDados.Provider>;
+}
 
 /** Abre o banco uma vez e injeta repositório e backup em toda a árvore. */
 export function ProvedorDeDados({ children }: { children: ReactNode }) {
@@ -20,7 +34,11 @@ export function ProvedorDeDados({ children }: { children: ReactNode }) {
     obterBanco()
       .then((db) => {
         const repositorio = new ServicoRepository(db);
-        setDados({ repositorio, backup: new BackupService(db, repositorio) });
+        setDados({
+          repositorio,
+          backup: new BackupService(db, new ConfigRepository(db)),
+          importacao: new ImportacaoService(repositorio),
+        });
       })
       .catch((causa) => setErro(String(causa)));
   }, []);
@@ -49,4 +67,8 @@ export function useRepositorio(): ServicoRepository {
 
 export function useBackup(): BackupService {
   return useDados().backup;
+}
+
+export function useImportacao(): ImportacaoService {
+  return useDados().importacao;
 }

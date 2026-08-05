@@ -54,7 +54,9 @@ export function parseCsv(text) {
   return rows;
 }
 
-// ---------- Regras de limpeza (mesmas regras do domínio do app) ----------
+// ---------- Regras de limpeza ----------
+// Cópias conscientes das funções de app/src/domain/{km,placa,datas}.ts — este
+// script roda em Node puro, fora do build do app. Se mudar lá, mude aqui.
 
 const KM_MAXIMO_PLAUSIVEL = 2_000_000;
 
@@ -66,15 +68,20 @@ export function normalizarKm(kmRaw) {
 }
 
 export function normalizarPlaca(placaRaw) {
-  return placaRaw.trim().toUpperCase().replace(/\s+/g, " ");
+  return placaRaw.toUpperCase().replace(/[\s-]/g, "");
 }
 
-export function dataEhSuspeita(dataIso, hoje) {
+/** Data local em ISO — nunca toISOString(), que converte para UTC. */
+export function paraIsoLocal(data) {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+export function dataEhSuspeita(dataIso, hojeIso) {
   if (dataIso === null) return false;
-  const amanha = new Date(hoje.getTime() + 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
-  return dataIso < "2000-01-01" || dataIso > amanha;
+  return dataIso < "2000-01-01" || dataIso > hojeIso;
 }
 
 // ---------- Importação ----------
@@ -110,6 +117,7 @@ function main() {
   `);
 
   const hoje = new Date();
+  const hojeIso = paraIsoLocal(hoje);
   const stats = {
     total: 0,
     semData: 0,
@@ -124,7 +132,7 @@ function main() {
     const km = normalizarKm(kmRaw);
     const placa = normalizarPlaca(placaRaw);
     const data = dataCsv === "" ? null : dataCsv;
-    const suspeita = dataEhSuspeita(data, hoje);
+    const suspeita = dataEhSuspeita(data, hojeIso);
 
     insert.run(
       Number(codigo),

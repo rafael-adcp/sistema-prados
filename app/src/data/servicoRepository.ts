@@ -1,8 +1,10 @@
-import type Database from "@tauri-apps/plugin-sql";
-import type { Busca } from "../domain/interpretarBusca";
+import type { Busca } from "../domain/busca";
+import { dataEhSuspeita, hojeIso } from "../domain/datas";
+import type { ServicoImportado } from "../domain/importarAccess";
 import { normalizarKm } from "../domain/km";
 import { normalizarPlaca } from "../domain/placa";
 import type { NovoServico, Servico } from "../domain/servico";
+import type { PortaDoBanco } from "./portaDoBanco";
 
 export interface PaginaDeServicos {
   itens: Servico[];
@@ -43,6 +45,11 @@ function paraServico(linha: LinhaServico): Servico {
   };
 }
 
+/** %/_ são curingas do LIKE; escapados, buscar "50%" acha só "50%". */
+function padraoLike(termo: string): string {
+  return `%${termo.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
 interface FiltroSql {
   where: string;
   parametros: unknown[];
@@ -50,11 +57,11 @@ interface FiltroSql {
 }
 
 /**
- * Única porta de acesso ao SQL do app: nenhuma tela monta query.
+ * Porta de acesso ao SQL de serviços: nenhuma tela monta query.
  * Recebe o Database pronto (injeção), então é trocável por um fake nos testes.
  */
 export class ServicoRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: PortaDoBanco) {}
 
   async buscar(busca: Busca, pagina: number, porPagina: number): Promise<PaginaDeServicos> {
     const filtro = this.filtroPara(busca);
@@ -71,9 +78,10 @@ export class ServicoRepository {
     return { itens: itens.map(paraServico), total: linhaTotal[0]?.total ?? 0 };
   }
 
+  /** Registros com data suspeita nunca vencem registros confiáveis. */
   async ultimaTroca(placa: string): Promise<Servico | null> {
     const linhas = await this.db.select<LinhaServico[]>(
-      `SELECT ${COLUNAS} FROM servicos WHERE placa = $1 ORDER BY data DESC, id DESC LIMIT 1`,
+      `SELECT ${COLUNAS} FROM servicos WHERE placa = $1 ORDER BY data_suspeita ASC, data DESC, id DESC LIMIT 1`,
       [normalizarPlaca(placa)],
     );
     return linhas.length > 0 ? paraServico(linhas[0]) : null;
@@ -115,17 +123,41 @@ export class ServicoRepository {
   async inserir(novo: NovoServico): Promise<number> {
     const resultado = await this.db.execute(
       `INSERT INTO servicos (carro, km, km_raw, placa, produto, data, data_suspeita)
-       VALUES ($1, $2, $3, $4, $5, $6, 0)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
-        novo.carro.trim(),
+        novo.carro.trim().toUpperCase(),
         normalizarKm(novo.kmRaw),
         novo.kmRaw.trim(),
         normalizarPlaca(novo.placa),
-        novo.produto.trim(),
+        novo.produto.trim().toUpperCase(),
         novo.data,
+        dataEhSuspeita(novo.data, hojeIso()) ? 1 : 0,
       ],
     );
     return resultado.lastInsertId ?? 0;
+  }
+
+  async atualizar(id: number, dados: NovoServico): Promise<void> {
+    const data = dados.data === "" ? null : dados.data;
+    await this.db.execute(
+      `UPDATE servicos
+       SET carro = $1, km = $2, km_raw = $3, placa = $4, produto = $5, data = $6, data_suspeita = $7
+       WHERE id = $8`,
+      [
+        dados.carro.trim().toUpperCase(),
+        normalizarKm(dados.kmRaw),
+        dados.kmRaw.trim(),
+        normalizarPlaca(dados.placa),
+        dados.produto.trim().toUpperCase(),
+        data,
+        dataEhSuspeita(data, hojeIso()) ? 1 : 0,
+        id,
+      ],
+    );
+  }
+
+  async excluir(id: number): Promise<void> {
+    await this.db.execute("DELETE FROM servicos WHERE id = $1", [id]);
   }
 
   async contarServicos(): Promise<number> {
@@ -135,19 +167,43 @@ export class ServicoRepository {
     return linhas[0]?.total ?? 0;
   }
 
-  async lerConfig(chave: string): Promise<string | null> {
-    const linhas = await this.db.select<{ valor: string }[]>(
-      "SELECT valor FROM config WHERE chave = $1",
-      [chave],
-    );
-    return linhas.length > 0 ? linhas[0].valor : null;
-  }
-
-  async gravarConfig(chave: string, valor: string): Promise<void> {
-    await this.db.execute(
-      "INSERT INTO config (chave, valor) VALUES ($1, $2) ON CONFLICT(chave) DO UPDATE SET valor = $2",
-      [chave, valor],
-    );
+  /**
+   * Importação inicial: apaga tudo e insere em lotes preservando os códigos
+   * originais do Access. Sem transação explícita (o pool do plugin não garante
+   * a mesma conexão entre chamadas) — se falhar no meio, repetir a importação
+   * recomeça do zero e resolve.
+   */
+  async substituirTodosPor(
+    servicos: ServicoImportado[],
+    aoProgredir?: (feitos: number) => void,
+  ): Promise<number> {
+    const LOTE = 100;
+    await this.db.execute("DELETE FROM servicos");
+    for (let inicio = 0; inicio < servicos.length; inicio += LOTE) {
+      const lote = servicos.slice(inicio, inicio + LOTE);
+      const espacos = lote
+        .map((_, i) => {
+          const base = i * 8;
+          return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`;
+        })
+        .join(", ");
+      const parametros = lote.flatMap((servico) => [
+        servico.id,
+        servico.carro,
+        servico.km,
+        servico.kmRaw,
+        servico.placa,
+        servico.produto,
+        servico.data,
+        servico.dataSuspeita ? 1 : 0,
+      ]);
+      await this.db.execute(
+        `INSERT INTO servicos (id, carro, km, km_raw, placa, produto, data, data_suspeita) VALUES ${espacos}`,
+        parametros,
+      );
+      aoProgredir?.(Math.min(inicio + LOTE, servicos.length));
+    }
+    return servicos.length;
   }
 
   private filtroPara(busca: Busca): FiltroSql {
@@ -166,18 +222,16 @@ export class ServicoRepository {
           parametros: [busca.de, busca.ate],
           ordem: "ORDER BY data DESC, id DESC",
         };
-      case "texto": {
-        const padrao = `%${busca.termo.trim()}%`;
+      case "texto":
         return {
-          where: "WHERE (carro LIKE $1 OR produto LIKE $1 OR placa LIKE $1)",
-          parametros: [padrao],
+          where: "WHERE (carro LIKE $1 ESCAPE '\\' OR produto LIKE $1 ESCAPE '\\' OR placa LIKE $1 ESCAPE '\\')",
+          parametros: [padraoLike(busca.termo)],
           ordem: "ORDER BY data DESC, id DESC",
         };
-      }
       case "carro":
         return {
-          where: "WHERE carro LIKE $1",
-          parametros: [`%${busca.termo.trim()}%`],
+          where: "WHERE carro LIKE $1 ESCAPE '\\'",
+          parametros: [padraoLike(busca.termo)],
           ordem: "ORDER BY data DESC, id DESC",
         };
     }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { useRepositorio } from "../../data/ProvedorDeDados";
 import type { SugestaoDePlaca } from "../../data/servicoRepository";
 import { formatarDataBr } from "../../domain/datas";
@@ -11,14 +11,15 @@ interface Props {
   valor: string;
   aoDigitar: (placa: string) => void;
   aoEscolher: (sugestao: SugestaoDePlaca) => void;
+  ref?: Ref<HTMLInputElement>;
 }
 
 /** Campo de placa com autocomplete sobre as 47 mil placas já atendidas. */
-export function CampoPlaca({ valor, aoDigitar, aoEscolher }: Props) {
+export function CampoPlaca({ valor, aoDigitar, aoEscolher, ref }: Props) {
   const repositorio = useRepositorio();
   const [sugestoes, setSugestoes] = useState<SugestaoDePlaca[]>([]);
   const [aberto, setAberto] = useState(false);
-  const campoRef = useRef<HTMLInputElement>(null);
+  const timerFechar = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const prefixo = prefixoDePlaca(valor);
@@ -41,10 +42,11 @@ export function CampoPlaca({ valor, aoDigitar, aoEscolher }: Props) {
     };
   }, [repositorio, valor]);
 
+  useEffect(() => () => clearTimeout(timerFechar.current), []);
+
   const escolher = (sugestao: SugestaoDePlaca) => {
     setAberto(false);
     aoEscolher(sugestao);
-    campoRef.current?.blur();
   };
 
   const mostrarLista = aberto && sugestoes.length > 0;
@@ -52,18 +54,25 @@ export function CampoPlaca({ valor, aoDigitar, aoEscolher }: Props) {
   return (
     <div className="campo-placa">
       <input
-        ref={campoRef}
+        ref={ref}
         type="text"
         value={valor}
         placeholder="Ex.: ABC1234"
         autoComplete="off"
         spellCheck={false}
+        maxLength={8}
+        autoFocus
         onChange={(evento) => {
-          aoDigitar(evento.target.value.toUpperCase());
+          aoDigitar(evento.target.value);
           setAberto(true);
         }}
-        onFocus={() => setAberto(true)}
-        onBlur={() => setTimeout(() => setAberto(false), 150)}
+        onFocus={() => {
+          clearTimeout(timerFechar.current);
+          setAberto(true);
+        }}
+        onBlur={() => {
+          timerFechar.current = window.setTimeout(() => setAberto(false), 150);
+        }}
       />
       {mostrarLista && (
         <ul className="sugestoes">

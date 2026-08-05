@@ -5,15 +5,17 @@ import type { Servico } from "../domain/servico";
 interface Props {
   itens: Servico[];
   aoClicarNaPlaca?: (placa: string) => void;
+  aoClicarNaLinha?: (servico: Servico) => void;
 }
 
 /** Tabela burra e reutilizável: Consultas, Histórico e Relatórios usam a mesma. */
-export function TabelaServicos({ itens, aoClicarNaPlaca }: Props) {
+export function TabelaServicos({ itens, aoClicarNaPlaca, aoClicarNaLinha }: Props) {
   if (itens.length === 0) {
     return <p className="estado-vazio">Nenhum serviço encontrado.</p>;
   }
+  const clicavel = aoClicarNaLinha !== undefined;
   return (
-    <table className="tabela-servicos">
+    <table className={clicavel ? "tabela-servicos linhas-clicaveis" : "tabela-servicos"}>
       <thead>
         <tr>
           <th>Data</th>
@@ -25,7 +27,11 @@ export function TabelaServicos({ itens, aoClicarNaPlaca }: Props) {
       </thead>
       <tbody>
         {itens.map((servico) => (
-          <tr key={servico.id}>
+          <tr
+            key={servico.id}
+            title={clicavel ? "Clique para editar este serviço" : undefined}
+            onClick={clicavel ? () => aoClicarNaLinha(servico) : undefined}
+          >
             <td className="col-data">
               {formatarDataBr(servico.data)}
               {servico.dataSuspeita && (
@@ -40,7 +46,10 @@ export function TabelaServicos({ itens, aoClicarNaPlaca }: Props) {
                   type="button"
                   className="link-placa"
                   title="Ver histórico deste veículo"
-                  onClick={() => aoClicarNaPlaca(servico.placa)}
+                  onClick={(evento) => {
+                    evento.stopPropagation();
+                    aoClicarNaPlaca(servico.placa);
+                  }}
                 >
                   {servico.placa}
                 </button>

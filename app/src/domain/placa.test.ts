@@ -6,8 +6,10 @@ describe("normalizarPlaca", () => {
     expect(normalizarPlaca("  abc1234 ")).toBe("ABC1234");
   });
 
-  it("colapsa espaços internos", () => {
-    expect(normalizarPlaca("ABC  6914")).toBe("ABC 6914");
+  it("compacta separadores — escrita e busca usam a MESMA forma canônica", () => {
+    expect(normalizarPlaca("ABC  6914")).toBe("ABC1234");
+    expect(normalizarPlaca("abc-1234")).toBe("ABC1234");
+    expect(normalizarPlaca("DOM 620")).toBe("DOM620");
   });
 });
 

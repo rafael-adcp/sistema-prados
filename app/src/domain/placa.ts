@@ -1,10 +1,10 @@
+/**
+ * Forma canônica de placa no banco: maiúsculas, sem espaços nem hífens.
+ * Escrita e leitura usam a MESMA regra — qualquer assimetria aqui faz um
+ * veículo "sumir" da busca e dividir o histórico em dois.
+ */
 export function normalizarPlaca(placaRaw: string): string {
-  return placaRaw.trim().toUpperCase().replace(/\s+/g, " ");
-}
-
-/** Remove separadores que as pessoas digitam em placas ("ABC-1234"). */
-function compactar(termo: string): string {
-  return termo.replace(/[\s-]/g, "");
+  return placaRaw.toUpperCase().replace(/[\s-]/g, "");
 }
 
 /**
@@ -13,10 +13,9 @@ function compactar(termo: string): string {
  * caracteres. Termos como "GOL" caem na busca por texto, que também olha placa.
  */
 export function pareceBuscaPorPlaca(termo: string): boolean {
-  const compacto = compactar(termo).toUpperCase();
-  return /^[A-Z]{3}[0-9][A-Z0-9]{0,3}$/.test(compacto);
+  return /^[A-Z]{3}[0-9][A-Z0-9]{0,3}$/.test(normalizarPlaca(termo));
 }
 
 export function prefixoDePlaca(termo: string): string {
-  return compactar(termo).toUpperCase();
+  return normalizarPlaca(termo);
 }

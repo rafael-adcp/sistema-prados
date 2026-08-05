@@ -7,21 +7,61 @@
 
 ## 📍 Onde estamos agora
 
-**Status atual**: M1 — Fundação (scaffold do projeto)
+**Status atual**: M9 — Revisão final + instalador (todas as telas codificadas e testadas; falta a revisão multi-agente e o build do .exe)
 
 | Milestone | Status |
 |---|---|
 | M0 — Análise do sistema antigo | ✅ Concluído |
-| M1 — Fundação (scaffold Tauri + estrutura) | 🔄 Em andamento |
-| M2 — Migração dos dados (.mdb → SQLite) | ⏳ |
-| M3 — Camada de dados do app (repositório + índices + testes) | ⏳ |
-| M4 — Tela Consultas (busca única) | ⏳ |
-| M5 — Tela Novo Serviço (autocomplete de placa) | ⏳ |
-| M6 — Histórico do veículo | ⏳ |
-| M7 — Relatórios + impressão | ⏳ |
-| M8 — Backup automático | ⏳ |
-| M9 — Instalador + revisão final | ⏳ |
+| M1 — Fundação (scaffold Tauri + estrutura) | ✅ Concluído |
+| M2 — Migração dos dados (.mdb → SQLite) | ✅ **140.840/140.840 registros, zero descartes** |
+| M3 — Camada de dados do app (repositório + índices + testes) | ✅ 37 testes passando; performance medida (tabela abaixo) |
+| M4 — Tela Consultas (busca única) | ✅ Concluído |
+| M5 — Tela Novo Serviço (autocomplete de placa) | ✅ Concluído |
+| M6 — Histórico do veículo | ✅ Concluído |
+| M7 — Relatórios + impressão | ✅ Concluído |
+| M8 — Backup automático | ✅ Concluído |
+| M9 — Instalador + revisão final | 🔄 Só falta o build do .exe |
+| F1 — Migração 100% via tela (sem Node/scripts na máquina do pai) | ✅ Concluído |
+| F2 — Editar/excluir serviço clicando na linha | ✅ Concluído |
+| F3 — Validação com destaque no próprio campo | ✅ Concluído |
+| F4 — Testes de ponta a ponta (SQL real + fluxos de UI) + cobertura | ✅ **109 testes TS + 4 Rust · 91% de linhas** |
 | M10 — Fase 2 (auto-update, virada na máquina do pai) | ⏳ |
+
+## F1–F4 — Feedback de 05/08 ✅
+
+**F1 — Migração 100% via tela.** Backup → "Migrar do sistema antigo (.mdb)…": o app roda um
+PowerShell embutido (via Rust, sem janela) que lê o Access com ACE 16/12 e cai para **Jet 4.0 em
+32 bits — presente em todo Windows, funciona até sem Office**; converte com as regras do domínio
+e importa em lotes com progresso na tela. Validado com o .mdb real: 140.840/140.840. Exportar já
+existia ("Fazer backup agora"); a tela agora deixa isso explícito. Os scripts de `migracao/`
+viraram alternativa de desenvolvedor — **nada roda manualmente na máquina do pai**.
+
+**F2 — Edição/exclusão.** Clicar em qualquer linha (Consultas e Histórico) abre o diálogo de
+edição com Salvar / Excluir (com confirmação) / Cancelar; a lista recarrega na hora. Registro
+legado sem data pode ser editado sem forçar data; data absurda continua barrada.
+
+**F3 — Validação no campo.** O erro aparece no próprio campo (borda vermelha + mensagem), no
+formulário de novo serviço e no diálogo de edição.
+
+**F4 — Pirâmide de testes.**
+- Repositórios: o **SQL de produção roda contra SQLite real** (node:sqlite + schema das próprias
+  migrations) — busca, fallback, escape de LIKE, paginação, flags de data, lotes, upsert.
+- Telas: Testing Library com fluxos completos (autocomplete → salvar → foco; duplo-clique salva 1;
+  badges; editar/excluir pela linha; abas sem perder estado; backup/migração com falhas em vermelho).
+- Rust: helpers testados (validação de nomes/timestamp, cabeçalho SQLite, poda de backups).
+- **Cobertura: 91% de linhas / 89% de statements** — o descoberto é a cola do runtime Tauri
+  (abrir janela/banco de verdade), coberta pelo smoke manual e pelos testes Rust.
+
+**Performance medida no banco real (140.840 registros)** — meta era < 100 ms:
+
+| Consulta | Mediana |
+|---|---|
+| Placa exata / última troca / histórico | < 1 ms |
+| Busca por data (mês inteiro) | < 1 ms |
+| Autocomplete de placa (prefixo, 47 mil placas) | ~11 ms |
+| Busca por texto (pior caso, varredura completa) | ~92 ms |
+
+Conclusão: índices em `placa` e `data` bastam; FTS5 desnecessário. O banco migrado tem **16,3 MB** (o .mdb tinha 157 MB — era ~90% inchaço por falta de compactação).
 
 ---
 
@@ -36,62 +76,75 @@ O que o sistema atual é (levantado do próprio .mdb + screenshots):
 - **Limite do Access**: 2 GB/arquivo; estamos em 157 MB (~8%) — o risco real é corrupção/dependência do Office, não o limite.
 - ⚠️ Este `.mdb` da pasta é uma **cópia** (produção roda na máquina do pai) — a virada final reimporta o arquivo de lá.
 
-## M1 — Fundação 🔄
+## M1 — Fundação ✅
 
-- [ ] Scaffold Tauri 2 + React + TS + Vite em `app/`
-- [ ] Plugin SQLite (`tauri-plugin-sql`) configurado
-- [ ] Estrutura de pastas em camadas (ver "Arquitetura" abaixo)
-- [ ] Vitest configurado para testes de domínio
-- [ ] `git init` + primeiro commit
+- [x] Scaffold Tauri 2 + React + TS + Vite em `app/`
+- [x] Plugin SQLite (`tauri-plugin-sql`) configurado + migrations idempotentes
+- [x] Estrutura de pastas em camadas (ver "Arquitetura" abaixo)
+- [x] Vitest configurado para testes de domínio
+- [x] `git init` + primeiro commit (`730809b`)
 
-## M2 — Migração dos dados ⏳
+## M2 — Migração dos dados ✅
 
-- [ ] `migracao/export-mdb.ps1` — lê o .mdb via ACE OLEDB → CSV UTF-8
-- [ ] `migracao/import-csv.mjs` — Node (`node:sqlite`, zero deps nativas) → `prados.db`
-- [ ] Regras de limpeza (preservando SEMPRE o dado original):
-  - `id` = CódigoDoServiço original
-  - `km_raw` (texto original) + `km` numérico (só dígitos; vazio/absurdo → NULL)
+- [x] `migracao/export-mdb.ps1` — lê o .mdb via ACE OLEDB → CSV UTF-8
+- [x] `migracao/import-csv.mjs` — Node (`node:sqlite`, zero deps nativas) → `prados.db`
+- [x] Regras de limpeza (preservando SEMPRE o dado original):
+  - `id` = CódigoDoServiço original (1 a 140.908)
+  - `km_raw` (texto original) + `km` numérico (2.382 sem km numérico, texto preservado)
   - `placa` trim + maiúsculas
-  - `data` em ISO (`yyyy-mm-dd`); impossíveis (< 2000 ou futuro) mantidas com flag `data_suspeita`
-- [ ] Validação: contagem 140.840 registros migrados + relatório de anomalias
+  - `data` em ISO; 22 datas impossíveis mantidas com flag `data_suspeita`
+- [x] Validação: **140.840 = 140.840** ✓ · 47.436 placas ✓ · relatório em `migracao/relatorio-migracao.txt`
 
-## M3 — Camada de dados do app ⏳
+## M3 — Camada de dados do app ✅
 
-- [ ] Schema + índices (`placa`, `data`) via migrations do plugin
-- [ ] `ServicoRepository` — única porta de acesso ao SQL (injetado via context, trocável por fake em teste)
-- [ ] Testes de domínio (parse de km, detecção do tipo de busca, formatação de datas)
-- [ ] **Meta de performance: toda consulta < 100 ms** (busca por placa/data via índice; texto livre em full scan medido — plano B: FTS5)
+- [x] Schema + índices (`placa`, `data`) via migrations do plugin
+- [x] `ServicoRepository` — única porta de acesso ao SQL (injetado via context)
+- [x] Testes de domínio: **37 passando** (km, placa, datas, busca, backup)
+- [x] **Meta < 100 ms atingida** (medição no banco real, tabela no topo) — FTS5 desnecessário
 
-## M4 — Tela Consultas ⏳
+## M4 — Tela Consultas ✅
 
-- [ ] Busca única: uma caixa que entende placa, texto (carro/produto) ou data
-- [ ] Resultados com paginação, debounce e contagem
-- [ ] Clique na linha → histórico do veículo
+- [x] Busca única: uma caixa que entende placa, texto (carro/produto) ou data
+- [x] Fallback esperto: termo com cara de placa sem resultado (ex.: código `PSL560`) refaz como texto
+- [x] Resultados com paginação (50/pág.), debounce 250 ms e contagem
+- [x] Clique na placa → histórico do veículo
 
-## M5 — Tela Novo Serviço ⏳
+## M5 — Tela Novo Serviço ✅
 
-- [ ] Digitar placa → autocomplete + preenche carro + mostra **última troca** (data, km, produto)
-- [ ] Data padrão hoje, campos grandes (uso no balcão)
-- [ ] Salvar e já ficar pronto para o próximo (fluxo de 30+ serviços/dia)
+- [x] Digitar placa → autocomplete (sobre as 47 mil placas) + preenche carro + cartão da **última troca**
+- [x] Data padrão hoje, campos grandes (uso no balcão), Enter salva
+- [x] Salvar limpa o formulário e mostra "Serviço nº X salvo" — pronto para o próximo
 
-## M6 — Histórico do veículo ⏳
+## M6 — Histórico do veículo ✅
 
-- [ ] Linha do tempo de todas as visitas da placa (data, km, produto)
+- [x] Todas as visitas da placa (data, km, produto) + "cliente desde…" + botão imprimir
 
-## M7 — Relatórios + impressão ⏳
+## M7 — Relatórios + impressão ✅
 
-- [ ] Mesmos 3 relatórios do sistema antigo (por data, por carro, por placa)
-- [ ] Layout de impressão via CSS print
+- [x] Mesmos 3 relatórios do sistema antigo (por período, por carro, por placa)
+- [x] Layout de impressão via CSS print (cabeçalho com nome da loja e data de emissão)
 
-## M8 — Backup automático ⏳
+## M8 — Backup automático ✅
 
-- [ ] Cópia datada do `prados.db` ao fechar o app (mantém últimas N)
-- [ ] Pasta de backup configurável (ex.: OneDrive/pendrive)
-- [ ] Botão "Fazer backup agora" + "Importar dados" (primeira instalação)
+- [x] Backup semanal automático na abertura + botão "Fazer backup agora"
+- [x] `VACUUM INTO` (cópia íntegra e compacta, segura com o banco aberto), mantém os 30 últimos
+- [x] Pasta configurável (ex.: OneDrive/pendrive) + "Importar dados" (primeira instalação)
 
-## M9 — Instalador + revisão final ⏳
+## M9 — Instalador + revisão final 🔄
 
-- [ ] Revisão de código multi-agente (bugs, performance, estilo Sandi Metz) + correções
+- [x] Revisão multi-agente (15 agentes: 5 lentes independentes + verificação adversarial de cada achado)
+  - 43 achados brutos → 10 confirmados como reais (0 falsos) + 33 menores — **todos os relevantes corrigidos**:
+  - 🔴 Duplo clique em "Salvar" gravava o serviço 2x → guard `salvando` + botão desabilitado
+  - 🔴 Importar banco podia destruir o histórico em falha parcial → substituição atômica (copia → renomeia o antigo como cópia de segurança → rename atômico); validação ANTES de fechar a conexão; app se recupera se falhar
+  - 🔴 Placa com hífen/espaço ficava invisível na busca → forma canônica única (compacta) na escrita e leitura + migration que corrige bancos existentes
+  - 🟡 Data futura digitada errada virava "última troca" eterna → validação de faixa no formulário + flag `data_suspeita` no insert + ordenação que ignora suspeitas + badge "?" no cartão
+  - 🟡 Navegar para o histórico destruía o formulário/busca digitados → abas ficam montadas; "Voltar" retorna à tela de origem
+  - 🟡 Foco não voltava à Placa após salvar → foco gerenciado (salvar → Placa; escolher sugestão → Km)
+  - 🟡 Backup interrompido podia passar por válido → escreve `.part` e promove só quando completo
+  - 🟡 Backup automático falhando em silêncio → banner de aviso no app
+  - 🟡 Endurecimento: CSP ativa, instância única, comandos async (janela nunca congela), plugin opener removido, curingas de LIKE escapados, erros visíveis em todas as telas (não mais em verde!), maxLength nos campos, datas de relatório invertidas corrigem sozinhas, cursor não pula mais ao digitar minúsculas
+- [x] Refinos Sandi Metz: `ConfigRepository` extraído, importação encapsulada no `BackupService`, tipo `Busca` movido para o domínio, `resumirHistorico` como função pura testada
+- [x] Testes: 46 passando (eram 37) · tsc limpo · cargo check limpo
 - [ ] `tauri build` → instalador `.exe` (NSIS)
 - [ ] Teste do instalador nesta máquina com os 140k registros
 

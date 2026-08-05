@@ -6,22 +6,20 @@ import { HistoricoPage } from "./features/historico/HistoricoPage";
 import { NovoServicoPage } from "./features/novo-servico/NovoServicoPage";
 import { RelatoriosPage } from "./features/relatorios/RelatoriosPage";
 
-type Tela =
-  | { nome: "novo" }
-  | { nome: "consultas" }
-  | { nome: "historico"; placa: string }
-  | { nome: "relatorios" }
-  | { nome: "backup" };
+type Aba = "novo" | "consultas" | "relatorios" | "backup";
 
-const ABAS = [
+type Tela = { nome: Aba } | { nome: "historico"; placa: string; origem: Aba };
+
+const ABAS: { nome: Aba; rotulo: string }[] = [
   { nome: "novo", rotulo: "Novo Serviço" },
   { nome: "consultas", rotulo: "Consultas" },
   { nome: "relatorios", rotulo: "Relatórios" },
   { nome: "backup", rotulo: "Backup" },
-] as const;
+];
 
 export default function App() {
   const [tela, setTela] = useState<Tela>({ nome: "novo" });
+  const [avisoBackup, setAvisoBackup] = useState<string | null>(null);
   const backup = useBackup();
   const backupJaVerificado = useRef(false);
 
@@ -30,10 +28,21 @@ export default function App() {
     backupJaVerificado.current = true;
     backup.fazerBackupAutomaticoSePrecisar().catch((causa) => {
       console.error("Backup automático falhou:", causa);
+      setAvisoBackup(
+        "O backup automático falhou — confira a pasta de backup na aba Backup (pendrive removido?).",
+      );
     });
   }, [backup]);
 
-  const verHistorico = (placa: string) => setTela({ nome: "historico", placa });
+  const verHistorico = (placa: string) => {
+    setTela((atual) => ({
+      nome: "historico",
+      placa,
+      origem: atual.nome === "historico" ? atual.origem : atual.nome,
+    }));
+  };
+
+  const emHistorico = tela.nome === "historico";
 
   return (
     <div className="app">
@@ -52,14 +61,31 @@ export default function App() {
           ))}
         </nav>
       </header>
+      {avisoBackup !== null && (
+        <div className="banner-aviso no-print">
+          <span>{avisoBackup}</span>
+          <button type="button" onClick={() => setAvisoBackup(null)}>
+            ✕
+          </button>
+        </div>
+      )}
       <main className="conteudo">
-        {tela.nome === "novo" && <NovoServicoPage aoVerHistorico={verHistorico} />}
-        {tela.nome === "consultas" && <ConsultasPage aoVerHistorico={verHistorico} />}
+        {/* As abas ficam montadas (hidden) para não perder formulário/busca ao navegar. */}
+        <div hidden={emHistorico || tela.nome !== "novo"}>
+          <NovoServicoPage aoVerHistorico={verHistorico} />
+        </div>
+        <div hidden={emHistorico || tela.nome !== "consultas"}>
+          <ConsultasPage aoVerHistorico={verHistorico} />
+        </div>
+        <div hidden={emHistorico || tela.nome !== "relatorios"}>
+          <RelatoriosPage aoVerHistorico={verHistorico} />
+        </div>
+        <div hidden={emHistorico || tela.nome !== "backup"}>
+          <BackupPage ativa={tela.nome === "backup"} />
+        </div>
         {tela.nome === "historico" && (
-          <HistoricoPage placa={tela.placa} aoVoltar={() => setTela({ nome: "consultas" })} />
+          <HistoricoPage placa={tela.placa} aoVoltar={() => setTela({ nome: tela.origem })} />
         )}
-        {tela.nome === "relatorios" && <RelatoriosPage aoVerHistorico={verHistorico} />}
-        {tela.nome === "backup" && <BackupPage />}
       </main>
     </div>
   );

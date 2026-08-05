@@ -15,7 +15,13 @@ export function CartaoUltimaTroca({ servico, totalDeVisitas, aoVerHistorico }: P
       <h3>Última troca desta placa</h3>
       <p className="ultima-troca-produto">{servico.produto || "—"}</p>
       <p>
-        {formatarDataBr(servico.data)} · {formatarKm(servico.km, servico.kmRaw) || "km não informado"}
+        {formatarDataBr(servico.data)}
+        {servico.dataSuspeita && (
+          <span className="badge-suspeita" title="Data provavelmente digitada errada no sistema antigo">
+            ?
+          </span>
+        )}{" "}
+        · {formatarKm(servico.km, servico.kmRaw) || "km não informado"}
       </p>
       <p className="ultima-troca-carro">{servico.carro}</p>
       <button type="button" className="botao-secundario" onClick={() => aoVerHistorico(servico.placa)}>

@@ -1,9 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { useBackup, useRepositorio } from "../../data/ProvedorDeDados";
-import { fecharBanco } from "../../data/database";
 import { formatarDataBr } from "../../domain/datas";
+import { MigracaoAccess } from "./MigracaoAccess";
 
 interface Situacao {
   totalDeServicos: number;
@@ -11,11 +10,16 @@ interface Situacao {
   ultimoBackupEm: string | null;
 }
 
-export function BackupPage() {
+interface Mensagem {
+  texto: string;
+  tipo: "sucesso" | "erro";
+}
+
+export function BackupPage({ ativa }: { ativa: boolean }) {
   const repositorio = useRepositorio();
   const backup = useBackup();
   const [situacao, setSituacao] = useState<Situacao | null>(null);
-  const [mensagem, setMensagem] = useState<string | null>(null);
+  const [mensagem, setMensagem] = useState<Mensagem | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
   const recarregar = async () => {
@@ -28,15 +32,16 @@ export function BackupPage() {
   };
 
   useEffect(() => {
+    if (!ativa) return;
     recarregar().catch((causa) => console.error("Situação do backup falhou:", causa));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ativa]);
 
   const escolherPasta = async () => {
     const pasta = await open({ directory: true, title: "Escolha a pasta de backup" });
     if (typeof pasta !== "string") return;
     await backup.definirPasta(pasta);
-    setMensagem(`Pasta de backup definida: ${pasta}`);
+    setMensagem({ texto: `Pasta de backup definida: ${pasta}`, tipo: "sucesso" });
     await recarregar();
   };
 
@@ -45,10 +50,10 @@ export function BackupPage() {
     setOcupado(true);
     try {
       const caminho = await backup.executarBackup(situacao.pastaDeBackup);
-      setMensagem(`✓ Backup criado: ${caminho}`);
+      setMensagem({ texto: `✓ Backup criado: ${caminho}`, tipo: "sucesso" });
       await recarregar();
     } catch (causa) {
-      setMensagem(`Backup falhou: ${causa}`);
+      setMensagem({ texto: `Backup falhou: ${causa}`, tipo: "erro" });
     } finally {
       setOcupado(false);
     }
@@ -61,17 +66,16 @@ export function BackupPage() {
     });
     if (typeof arquivo !== "string") return;
     const confirmado = await ask(
-      "Isto SUBSTITUI todos os dados atuais pelo arquivo escolhido. Continuar?",
+      "Isto SUBSTITUI todos os dados atuais pelo arquivo escolhido.\nO banco atual fica guardado na pasta de dados como cópia de segurança.\nContinuar?",
       { title: "Importar banco de dados", kind: "warning" },
     );
     if (!confirmado) return;
     setOcupado(true);
     try {
-      await fecharBanco();
-      await invoke("substituir_banco", { caminhoOrigem: arquivo });
+      await backup.importarBanco(arquivo);
       window.location.reload();
     } catch (causa) {
-      setMensagem(`Importação falhou: ${causa}`);
+      setMensagem({ texto: `Importação falhou: ${causa}`, tipo: "erro" });
       setOcupado(false);
     }
   };
@@ -81,7 +85,11 @@ export function BackupPage() {
   return (
     <section className="backup">
       <h2>Backup e dados</h2>
-      {mensagem !== null && <p className="mensagem-sucesso">{mensagem}</p>}
+      {mensagem !== null && (
+        <p className={mensagem.tipo === "sucesso" ? "mensagem-sucesso" : "mensagem-erro"}>
+          {mensagem.texto}
+        </p>
+      )}
 
       <dl className="ficha">
         <dt>Serviços registrados</dt>
@@ -112,13 +120,22 @@ export function BackupPage() {
       </div>
 
       <hr />
-      <h3>Importar dados</h3>
+      <MigracaoAccess
+        aoConcluir={(texto) => {
+          setMensagem({ texto, tipo: "sucesso" });
+          void recarregar();
+        }}
+        aoFalhar={(texto) => setMensagem({ texto, tipo: "erro" })}
+      />
+
+      <hr />
+      <h3>Restaurar um banco pronto</h3>
       <p className="texto-apoio">
-        Usado uma única vez, na primeira instalação, para carregar o banco gerado pela migração do
-        Access (arquivo <code>prados.db</code>).
+        Para carregar um arquivo <code>prados.db</code> (um backup ou um banco migrado em outra
+        máquina). O banco atual fica guardado como cópia de segurança na pasta de dados.
       </p>
       <button type="button" className="botao-secundario" disabled={ocupado} onClick={() => void importarBanco()}>
-        Importar banco de dados…
+        Restaurar banco de dados…
       </button>
     </section>
   );
