@@ -1,0 +1,478 @@
+:root {
+  --azul: #0b6bcb;
+  --azul-escuro: #084f96;
+  --ciano-heranca: #c9f2fa; /* aceno ao azul-claro do sistema antigo */
+  --tinta: #1a2733;
+  --tinta-suave: #5b6b7a;
+  --fundo: #f4f8fb;
+  --branco: #ffffff;
+  --borda: #d4dee7;
+  --verde: #167d4e;
+  --vermelho: #b3261e;
+  --amarelo-fundo: #fff7e0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 17px;
+  color: var(--tinta);
+  background: var(--fundo);
+}
+
+#root,
+.app {
+  min-height: 100vh;
+}
+
+/* ---------- Cabeçalho e navegação ---------- */
+
+.cabecalho {
+  background: linear-gradient(180deg, var(--ciano-heranca), var(--fundo));
+  padding: 14px 24px 0;
+  border-bottom: 2px solid var(--azul);
+}
+
+.cabecalho h1 {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-style: italic;
+  letter-spacing: 0.5px;
+  color: var(--azul-escuro);
+}
+
+.cabecalho nav {
+  display: flex;
+  gap: 6px;
+}
+
+.aba {
+  font-size: 18px;
+  padding: 10px 22px;
+  border: 1px solid var(--borda);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: var(--branco);
+  color: var(--tinta-suave);
+  cursor: pointer;
+}
+
+.aba.ativa {
+  background: var(--azul);
+  border-color: var(--azul);
+  color: var(--branco);
+  font-weight: 600;
+}
+
+.conteudo {
+  padding: 24px;
+  max-width: 1150px;
+  margin: 0 auto;
+}
+
+h2 {
+  margin-top: 0;
+}
+
+/* ---------- Formulários ---------- */
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--tinta-suave);
+  font-size: 15px;
+}
+
+input,
+select {
+  font-size: 19px;
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--branco);
+  color: var(--tinta);
+  font-family: inherit;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--azul);
+  outline-offset: 0;
+  border-color: var(--azul);
+}
+
+.campo-busca {
+  width: 100%;
+  font-size: 21px;
+  padding: 14px 16px;
+}
+
+.descricao-busca {
+  color: var(--tinta-suave);
+  margin: 8px 0 16px;
+}
+
+.linha-formulario {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.grupo-campos {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  max-width: 520px;
+}
+
+.filtros-relatorio {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+/* ---------- Botões ---------- */
+
+.botao-principal,
+.botao-secundario {
+  font-size: 19px;
+  padding: 12px 26px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.botao-principal {
+  background: var(--azul);
+  color: var(--branco);
+  border: 1px solid var(--azul-escuro);
+  font-weight: 600;
+}
+
+.botao-principal:hover:not(:disabled) {
+  background: var(--azul-escuro);
+}
+
+.botao-principal:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.botao-secundario {
+  background: var(--branco);
+  color: var(--azul-escuro);
+  border: 1px solid var(--borda);
+}
+
+.botao-secundario:hover:not(:disabled) {
+  border-color: var(--azul);
+}
+
+.novo-servico .botao-principal {
+  margin-top: 18px;
+}
+
+.barra-de-acoes {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* ---------- Autocomplete de placa ---------- */
+
+.campo-placa {
+  position: relative;
+}
+
+.campo-placa input {
+  width: 100%;
+  font-size: 23px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-family: Consolas, monospace;
+}
+
+.sugestoes {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(26, 39, 51, 0.18);
+  overflow: hidden;
+}
+
+.sugestoes button {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sugestoes button:hover {
+  background: var(--ciano-heranca);
+}
+
+.sugestoes strong {
+  font-family: Consolas, monospace;
+  letter-spacing: 1px;
+}
+
+.sugestao-data {
+  color: var(--tinta-suave);
+  font-size: 14px;
+}
+
+/* ---------- Cartão de última troca ---------- */
+
+.cartao-ultima-troca {
+  flex: 1;
+  background: var(--branco);
+  border: 2px solid var(--azul);
+  border-radius: 12px;
+  padding: 18px 20px;
+  max-width: 420px;
+}
+
+.cartao-ultima-troca h3 {
+  margin: 0 0 8px;
+  color: var(--azul-escuro);
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.ultima-troca-produto {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.ultima-troca-carro {
+  color: var(--tinta-suave);
+}
+
+/* ---------- Tabela ---------- */
+
+.tabela-servicos {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tabela-servicos th {
+  text-align: left;
+  background: var(--azul-escuro);
+  color: var(--branco);
+  padding: 10px 14px;
+  font-size: 15px;
+}
+
+.tabela-servicos td {
+  padding: 9px 14px;
+  border-top: 1px solid var(--borda);
+  font-size: 16px;
+}
+
+.tabela-servicos tbody tr:nth-child(even) {
+  background: #eef4f9;
+}
+
+.col-placa,
+.col-km {
+  font-family: Consolas, monospace;
+  white-space: nowrap;
+}
+
+.col-data {
+  white-space: nowrap;
+}
+
+.link-placa {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--azul);
+  cursor: pointer;
+  text-decoration: underline;
+  letter-spacing: 1px;
+}
+
+.badge-suspeita {
+  display: inline-block;
+  margin-left: 6px;
+  background: var(--amarelo-fundo);
+  border: 1px solid #d9a800;
+  color: #7a5d00;
+  border-radius: 50%;
+  width: 20px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ---------- Mensagens e estados ---------- */
+
+.mensagem-sucesso {
+  background: #e6f4ec;
+  border: 1px solid var(--verde);
+  color: var(--verde);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.lista-problemas {
+  background: #fdecea;
+  border: 1px solid var(--vermelho);
+  color: var(--vermelho);
+  padding: 10px 16px 10px 32px;
+  border-radius: 8px;
+  margin: 14px 0 0;
+}
+
+.aviso {
+  background: var(--amarelo-fundo);
+  border: 1px solid #d9a800;
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+
+.estado-vazio,
+.carregando {
+  color: var(--tinta-suave);
+  padding: 30px;
+  text-align: center;
+  font-size: 18px;
+}
+
+.tela-erro {
+  padding: 40px;
+  color: var(--vermelho);
+}
+
+/* ---------- Paginação ---------- */
+
+.paginacao {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  padding: 16px;
+}
+
+.paginacao button {
+  font-size: 17px;
+  padding: 8px 18px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--branco);
+  cursor: pointer;
+}
+
+.paginacao button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---------- Backup ---------- */
+
+.ficha {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 24px;
+  background: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 18px 22px;
+  max-width: 720px;
+}
+
+.ficha dt {
+  font-weight: 600;
+  color: var(--tinta-suave);
+}
+
+.ficha dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.texto-apoio {
+  color: var(--tinta-suave);
+  max-width: 720px;
+}
+
+/* ---------- Relatórios / impressão ---------- */
+
+.cabecalho-relatorio {
+  margin-bottom: 14px;
+}
+
+.so-impressao {
+  display: none;
+}
+
+@media print {
+  body {
+    background: var(--branco);
+    font-size: 12px;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .so-impressao {
+    display: block;
+  }
+
+  .conteudo {
+    padding: 0;
+    max-width: none;
+  }
+
+  .tabela-servicos th {
+    background: none;
+    color: var(--tinta);
+    border-bottom: 2px solid var(--tinta);
+  }
+
+  .tabela-servicos td {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .link-placa {
+    color: var(--tinta);
+    text-decoration: none;
+  }
+}

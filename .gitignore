@@ -1,0 +1,7 @@
+# Dados reais — nunca versionar
+Sistema Prado.mdb
+*.mdb
+migracao/servicos.csv
+migracao/prados.db
+migracao/prados.db-*
+migracao/relatorio-migracao.txt
