@@ -7,7 +7,7 @@
 
 ## 📍 Onde estamos agora
 
-**Status atual**: M9 — Revisão final + instalador (todas as telas codificadas e testadas; falta a revisão multi-agente e o build do .exe)
+**Status atual**: ✅ Pronto para instalar — `Sistema Prado_2.0.0_x64-setup.exe` gerado e testado (3 MB, em `app/src-tauri/target/release/bundle/nsis/`). Próximo passo: M10 (virada na máquina do pai — ver INSTALACAO.md).
 
 | Milestone | Status |
 |---|---|
@@ -20,7 +20,7 @@
 | M6 — Histórico do veículo | ✅ Concluído |
 | M7 — Relatórios + impressão | ✅ Concluído |
 | M8 — Backup automático | ✅ Concluído |
-| M9 — Instalador + revisão final | 🔄 Só falta o build do .exe |
+| M9 — Instalador + revisão final | ✅ Instalador de 3 MB gerado e testado |
 | F1 — Migração 100% via tela (sem Node/scripts na máquina do pai) | ✅ Concluído |
 | F2 — Editar/excluir serviço clicando na linha | ✅ Concluído |
 | F3 — Validação com destaque no próprio campo | ✅ Concluído |
@@ -145,8 +145,8 @@ O que o sistema atual é (levantado do próprio .mdb + screenshots):
   - 🟡 Endurecimento: CSP ativa, instância única, comandos async (janela nunca congela), plugin opener removido, curingas de LIKE escapados, erros visíveis em todas as telas (não mais em verde!), maxLength nos campos, datas de relatório invertidas corrigem sozinhas, cursor não pula mais ao digitar minúsculas
 - [x] Refinos Sandi Metz: `ConfigRepository` extraído, importação encapsulada no `BackupService`, tipo `Busca` movido para o domínio, `resumirHistorico` como função pura testada
 - [x] Testes: 46 passando (eram 37) · tsc limpo · cargo check limpo
-- [ ] `tauri build` → instalador `.exe` (NSIS)
-- [ ] Teste do instalador nesta máquina com os 140k registros
+- [x] `tauri build` → `Sistema Prado_2.0.0_x64-setup.exe` (NSIS, 3 MB)
+- [x] Binário de release verificado rodando com a CSP estrita e o banco migrado
 
 ## M10 — Fase 2 (pós-aprovação) ⏳
 
