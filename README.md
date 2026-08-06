@@ -39,7 +39,8 @@ Tudo acontece pela tela do sistema — nada de scripts, Node ou linha de comando
 
 ## O sistema antigo (referência)
 
-Levantado do próprio `.mdb` + screenshots em `old_system_Screenshots/`:
+Levantado do próprio `.mdb` (os screenshots do sistema antigo saíram do repositório
+junto com os demais dados do cliente):
 
 - **1 tabela** (`Produtos`): CódigoDoServiço, DescriçãodoCarro, Km (texto), Placa,
   DescriçãoDoProduto, Data.

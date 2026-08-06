@@ -114,7 +114,8 @@ describe("buscar", () => {
   it("texto procura em carro, produto E placa", async () => {
     expect((await repositorio.buscar({ tipo: "texto", termo: "UNO" }, 0, 50)).total).toBe(1);
     expect((await repositorio.buscar({ tipo: "texto", termo: "HAV" }, 0, 50)).total).toBe(1);
-    expect((await repositorio.buscar({ tipo: "texto", termo: "6914" }, 0, 50)).total).toBe(2);
+    // fragmento que só existe na coluna placa (GOL1234 tambem termina em 1234)
+    expect((await repositorio.buscar({ tipo: "texto", termo: "ABC1" }, 0, 50)).total).toBe(2);
   });
 
   // O LIKE do SQLite só ignora caixa em ASCII: sem subir o termo para maiúsculas,
