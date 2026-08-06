@@ -20,6 +20,47 @@ fn migrations() -> Vec<Migration> {
     ]
 }
 
+#[cfg(test)]
+mod testes_das_migrations {
+    use super::migrations;
+
+    /// O sqlx guarda o SHA-384 do conteúdo da migration no banco e recusa abrir
+    /// se ele mudar. Com CRLF o hash é outro: um app compilado no runner Windows
+    /// (que faz checkout com CRLF) não abria banco criado por build local (LF),
+    /// com "migration 1 was previously applied but has been modified".
+    ///
+    /// Isto olha os bytes que o include_str! realmente colocou no binário, então
+    /// falha na CI antes de gerar um instalador quebrado. O .gitattributes é
+    /// quem previne; este teste é quem avisa se a prevenção sair do lugar.
+    #[test]
+    fn migrations_nao_podem_ter_cr() {
+        for migration in migrations() {
+            assert!(
+                !migration.sql.contains('\r'),
+                "migration {} ({}) tem CR — o checksum do sqlx muda e o app deixa de abrir \
+                 bancos criados com a versão LF. Confira o .gitattributes.",
+                migration.version,
+                migration.description
+            );
+        }
+    }
+
+    /// Ambas são reaplicáveis (IF NOT EXISTS / UPDATE que não recasa). Isso é o
+    /// que permite recuperar um banco com checksum divergente sem perder dados.
+    #[test]
+    fn migrations_sao_idempotentes() {
+        for migration in migrations() {
+            let sql = migration.sql.to_uppercase();
+            let segura = sql.contains("IF NOT EXISTS") || sql.trim_start().starts_with("--");
+            assert!(
+                segura || !sql.contains("CREATE TABLE"),
+                "migration {} cria tabela sem IF NOT EXISTS",
+                migration.version
+            );
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()

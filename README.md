@@ -174,6 +174,13 @@ Achados de uma revisão adversarial multi-agente, todos corrigidos — vale sabe
   botão "Editar" na linha); o diálogo prende o foco e fecha no Escape.
 - Busca sobe o termo para maiúsculas: o `LIKE` do SQLite só ignora caixa em ASCII, e sem isso
   procurar "camarão" não achava "CAMARÃO".
+- **`.gitattributes` força LF** (`* text=auto eol=lf`). Não é estilo: o sqlx guarda o
+  SHA-384 do **conteúdo** de cada migration dentro do banco e recusa abrir se ele mudar
+  (*"migration 1 was previously applied but has been modified"*). O runner Windows do
+  GitHub faz checkout com CRLF e o build local usa LF — o mesmo arquivo gerava dois
+  checksums, e um app compilado na CI **não abria um banco criado localmente**. Um teste
+  Rust (`migrations_nao_podem_ter_cr`) checa os bytes que o `include_str!` pôs no binário,
+  então a CI quebra antes de gerar um instalador assim.
 - Salvar tem guard `salvando` + botão desabilitado (duplo clique gravava 2x).
 - Importar banco é **substituição atômica** (copia → renomeia o antigo como cópia → rename), com
   validação antes de fechar a conexão e recuperação se falhar no meio.

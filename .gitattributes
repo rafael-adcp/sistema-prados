@@ -1,0 +1,16 @@
+# Fim de linha igual em qualquer máquina.
+#
+# Isto não é preferência de estilo: o sqlx guarda o SHA-384 do CONTEÚDO de cada
+# migration no banco e se recusa a abrir quando o hash muda ("migration 1 was
+# previously applied but has been modified"). O runner Windows do GitHub faz
+# checkout com CRLF por padrão, e um build local usa LF — o mesmo arquivo gerava
+# dois checksums, e um app compilado na CI não abria um banco criado localmente.
+* text=auto eol=lf
+
+# Binários que o git não deve tocar.
+*.png binary
+*.ico binary
+*.icns binary
+*.mdb binary
+*.db binary
+*.exe binary
