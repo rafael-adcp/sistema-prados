@@ -132,6 +132,17 @@ select:focus {
   max-width: 520px;
 }
 
+/* Todos os campos do formulário com o MESMO tamanho; a Placa se distingue só
+   pela fonte de "código" (mono, espaçada), igual à das tabelas. */
+.grupo-campos input {
+  font-size: 21px;
+}
+
+/* Carro e produto são gravados em maiúsculas — o campo já mostra assim. */
+.entrada-maiuscula {
+  text-transform: uppercase;
+}
+
 .filtros-relatorio {
   display: flex;
   gap: 14px;
@@ -201,7 +212,7 @@ select:focus {
 
 .campo-placa input {
   width: 100%;
-  font-size: 23px;
+  font-size: 21px;
   letter-spacing: 2px;
   text-transform: uppercase;
   font-family: Consolas, monospace;
@@ -606,6 +617,9 @@ select:focus {
   transition:
     opacity 0.2s ease,
     filter 0.2s ease;
+  /* Trocar o ano regenera os gráficos; sem isto o Chromium "ancora" a rolagem
+     no vai-e-vem de altura e a página pula para baixo. */
+  overflow-anchor: none;
 }
 
 .painel-analises.atualizando {
@@ -687,6 +701,12 @@ select:focus {
   border: 1px solid var(--borda);
   border-radius: 10px;
   padding: 14px 16px;
+}
+
+/* Altura do billboard.js (320px): reservada mesmo entre destroy/generate,
+   para o conteúdo abaixo não subir e descer a cada recálculo. */
+.grafico figcaption + div {
+  min-height: 320px;
 }
 
 .grafico figcaption {

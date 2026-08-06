@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { descreverBusca } from "../../domain/interpretarBusca";
 import type { Servico } from "../../domain/servico";
 import { TabelaServicos } from "../../ui/TabelaServicos";
@@ -6,12 +6,23 @@ import { EditarServicoDialog } from "../editar-servico/EditarServicoDialog";
 import { Paginacao } from "./Paginacao";
 import { ITENS_POR_PAGINA, useBusca } from "./useBusca";
 
-export function ConsultasPage({ aoVerHistorico }: { aoVerHistorico: (placa: string) => void }) {
+interface Props {
+  ativa: boolean;
+  aoVerHistorico: (placa: string) => void;
+}
+
+export function ConsultasPage({ ativa, aoVerHistorico }: Props) {
   const [termo, setTermo] = useState("");
   const [pagina, setPagina] = useState(0);
   const [versao, setVersao] = useState(0);
   const [emEdicao, setEmEdicao] = useState<Servico | null>(null);
   const { resultado, buscaEfetiva, carregando, erro } = useBusca(termo, pagina, versao);
+
+  // A aba fica montada para preservar a busca digitada; ao voltar a ficar
+  // ativa, refaz a consulta para mostrar serviços salvos nas outras telas.
+  useEffect(() => {
+    if (ativa) setVersao((atual) => atual + 1);
+  }, [ativa]);
 
   const mudarTermo = (novoTermo: string) => {
     setTermo(novoTermo);

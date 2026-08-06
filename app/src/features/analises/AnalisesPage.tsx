@@ -1,21 +1,10 @@
 import { useEffect, useState } from "react";
-import type { BaseDeAnalise, ContagensDeInconsistencias } from "../../data/analiseRepository";
 import { useAnalises } from "../../data/ProvedorDeDados";
-import {
-  mesIsoDe,
-  mesmoMesDoAnoAnterior,
-  periodoDeUltimosAnos,
-  type PeriodoDeAnos,
-} from "../../domain/analises";
 import { formatarDataBr, hojeIso } from "../../domain/datas";
 import { Carregando } from "../../ui/Carregando";
-import { SecaoNumeros, type NumerosDaOficina } from "./SecaoNumeros";
+import { carregarPainel, type PainelDeAnalises } from "./carregarPainel";
+import { SecaoNumeros } from "./SecaoNumeros";
 import { SecaoQualidade } from "./SecaoQualidade";
-
-/** "todos" ou um ano ("2026"): filtra os indicadores, não os gráficos por ano. */
-function paraPeriodo(anoEscolhido: string): PeriodoDeAnos | undefined {
-  return anoEscolhido === "todos" ? undefined : { deAno: anoEscolhido, ateAno: anoEscolhido };
-}
 
 interface Props {
   ativa: boolean;
@@ -28,11 +17,8 @@ interface Props {
  */
 export function AnalisesPage({ ativa, aoVerHistorico }: Props) {
   const analises = useAnalises();
-  const [base, setBase] = useState<BaseDeAnalise | null>(null);
-  const [contagens, setContagens] = useState<ContagensDeInconsistencias | null>(null);
-  const [numeros, setNumeros] = useState<NumerosDaOficina | null>(null);
+  const [painel, setPainel] = useState<PainelDeAnalises | null>(null);
   const [anoEscolhido, setAnoEscolhido] = useState(() => hojeIso().slice(0, 4));
-  const [anos, setAnos] = useState<string[]>(() => [hojeIso().slice(0, 4)]);
   const [versao, setVersao] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [recalculando, setRecalculando] = useState(false);
@@ -40,70 +26,12 @@ export function AnalisesPage({ ativa, aoVerHistorico }: Props) {
   useEffect(() => {
     if (!ativa) return;
     let cancelada = false;
-    const hoje = hojeIso();
-    const mesAtual = mesIsoDe(hoje);
-    const periodo = paraPeriodo(anoEscolhido);
     setErro(null);
     setRecalculando(true);
-    Promise.all([
-      analises.contarBase(),
-      analises.contarInconsistencias(),
-      analises.anosDisponiveis(),
-      analises.trocasPorAnoEMes(periodoDeUltimosAnos(hoje, 5)),
-      analises.trocasPorAno(), // por ano é multi-anos por definição: o filtro não se aplica
-      analises.placasDistintasPorAno(),
-      analises.faixasDeRetorno(periodo),
-      analises.retornoPorAno(),
-      analises.resumoDeTrocas("dia", periodo),
-      analises.resumoDeTrocas("mes", periodo),
-      analises.resumoDeTrocas("ano", periodo),
-      analises.resumoDeTrocas("mes"), // média mensal histórica do cartão, sempre completa
-      analises.retornoDeClientes(periodo),
-      analises.sazonalidade(mesAtual),
-      analises.comparativoDoMes(mesAtual, mesmoMesDoAnoAnterior(mesAtual)),
-      analises.topProdutos(10, periodo),
-    ])
-      .then(
-        ([
-          baseContada,
-          inconsistencias,
-          anosDoBanco,
-          trocasPorAnoEMes,
-          trocasPorAno,
-          placasDistintasPorAno,
-          faixasDeRetorno,
-          retornoPorAno,
-          porDia,
-          porMes,
-          porAno,
-          porMesHistorico,
-          retorno,
-          sazonalidade,
-          comparativo,
-          topProdutos,
-        ]) => {
-          if (cancelada) return;
-          const anoAtual = hoje.slice(0, 4);
-          setAnos(anosDoBanco.includes(anoAtual) ? anosDoBanco : [anoAtual, ...anosDoBanco]);
-          setBase(baseContada);
-          setContagens(inconsistencias);
-          setNumeros({
-            trocasPorAnoEMes,
-            trocasPorAno,
-            placasDistintasPorAno,
-            faixasDeRetorno,
-            retornoPorAno,
-            porDia,
-            porMes,
-            porAno,
-            porMesHistorico,
-            retorno,
-            sazonalidade,
-            comparativo,
-            topProdutos,
-          });
-        },
-      )
+    carregarPainel(analises, hojeIso(), anoEscolhido)
+      .then((novo) => {
+        if (!cancelada) setPainel(novo);
+      })
       .catch((causa) => {
         console.error("Análises falharam:", causa);
         if (!cancelada) setErro("Não foi possível calcular as análises — tente novamente.");
@@ -117,7 +45,6 @@ export function AnalisesPage({ ativa, aoVerHistorico }: Props) {
   }, [analises, ativa, anoEscolhido, versao]);
 
   const hoje = hojeIso();
-  const pronto = base !== null && contagens !== null && numeros !== null;
 
   return (
     <section>
@@ -145,7 +72,7 @@ export function AnalisesPage({ ativa, aoVerHistorico }: Props) {
         <h2>Super Troca de Óleo Prado's — Análises</h2>
         <p>Emitido em {formatarDataBr(hoje)}</p>
       </header>
-      {!pronto ? (
+      {painel === null ? (
         erro === null && <Carregando mensagem="Calculando as análises…" />
       ) : (
         <>
@@ -160,22 +87,22 @@ export function AnalisesPage({ ativa, aoVerHistorico }: Props) {
             className={recalculando ? "painel-analises atualizando" : "painel-analises"}
             aria-busy={recalculando}
           >
-          {base.validos < base.total && (
+          {painel.base.validos < painel.base.total && (
             <p className="texto-apoio">
-              Números calculados sobre {base.validos.toLocaleString("pt-BR")} de{" "}
-              {base.total.toLocaleString("pt-BR")} registros — os demais estão sem data ou com data
-              suspeita (veja Qualidade dos dados abaixo).
+              Números calculados sobre {painel.base.validos.toLocaleString("pt-BR")} de{" "}
+              {painel.base.total.toLocaleString("pt-BR")} registros — os demais estão sem data ou
+              com data suspeita (veja Qualidade dos dados abaixo).
             </p>
           )}
           <SecaoNumeros
-            numeros={numeros}
+            numeros={painel.numeros}
             hoje={hoje}
             anoEscolhido={anoEscolhido}
-            anos={anos}
+            anos={painel.anos}
             aoEscolherAno={setAnoEscolhido}
           />
           <SecaoQualidade
-            contagens={contagens}
+            contagens={painel.contagens}
             aoVerHistorico={aoVerHistorico}
             aoMudar={() => setVersao((atual) => atual + 1)}
           />

@@ -1,6 +1,11 @@
-import bb, { bar, line } from "billboard.js";
+import bb, { bar, grid, line } from "billboard.js";
 import "billboard.js/dist/billboard.css";
 import { useEffect, useRef } from "react";
+
+// No build ESM do billboard 4, grid é módulo opt-in. Sem registrá-lo, as linhas
+// de referência não renderizam E o handler de mouse lança TypeError a cada
+// movimento (showAxisGridFocus ausente) — o tooltip nunca chega a abrir.
+grid();
 
 export interface SerieDoGrafico {
   nome: string;
@@ -63,7 +68,9 @@ export function Grafico({ titulo, tipo, rotulosX, series, referencias, formatarV
         },
       },
       legend: { show: series.length > 1 },
-      tooltip: { format: { value: (valor: number) => formatar(valor) } },
+      // order desc: no tooltip, a série de maior valor vem primeiro (útil no
+      // gráfico mensal multi-anos, onde as linhas se cruzam).
+      tooltip: { order: "desc", format: { value: (valor: number) => formatar(valor) } },
       point: { show: rotulosX.length <= 31 },
     });
     return () => {

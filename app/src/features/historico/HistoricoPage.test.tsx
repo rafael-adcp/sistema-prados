@@ -36,6 +36,18 @@ describe("HistoricoPage", () => {
     expect(screen.getByTitle(/digitada errada/i)).toBeInTheDocument();
   });
 
+  it("falha ao carregar mostra o erro e o Voltar continua funcionando", async () => {
+    vi.spyOn(ambiente.repositorio, "historico").mockRejectedValueOnce(new Error("banco fechado"));
+    const erroDeConsole = vi.spyOn(console, "error").mockImplementation(() => {});
+    const usuario = userEvent.setup();
+    renderizarComDados(<HistoricoPage placa="ABC1234" aoVoltar={aoVoltar} />, ambiente.dados);
+
+    expect(await screen.findByText(/não foi possível carregar o histórico/i)).toBeInTheDocument();
+    await usuario.click(screen.getByRole("button", { name: /voltar/i }));
+    expect(aoVoltar).toHaveBeenCalled();
+    erroDeConsole.mockRestore();
+  });
+
   it("voltar chama o callback e a linha abre edição", async () => {
     const usuario = userEvent.setup();
     renderizarComDados(<HistoricoPage placa="ABC1234" aoVoltar={aoVoltar} />, ambiente.dados);

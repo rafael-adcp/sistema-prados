@@ -6,7 +6,7 @@ Substituto do "Sistema Prado" (Access `.mdb`) da Super Troca de Óleo Prado's.
 Sandi Metz (objetos pequenos, responsabilidade única, dependências injetadas).
 
 **Estado**: pronto para instalar. `Sistema Prado_2.0.0_x64-setup.exe` (3 MB) gerado e testado, em
-`app/src-tauri/target/release/bundle/nsis/`. Falta só a virada na máquina do pai.
+`app/src-tauri/target/release/bundle/nsis/`. Falta só a virada na máquina do cliente.
 
 ---
 
@@ -48,7 +48,7 @@ Levantado do próprio `.mdb` + screenshots em `old_system_Screenshots/`:
   `LIKE *x*`) · 3 relatórios (mesmos filtros, para impressão).
 - **Qualidade dos dados**: ~1.020 sem data · ~991 sem placa · ~2.381 sem km · 30 datas impossíveis
   (1982/2042) · km em formatos mistos (`126.705`, `138139`, `4*`).
-- O `.mdb` desta pasta é uma **cópia** — produção roda na máquina do pai, e a virada reimporta o
+- O `.mdb` desta pasta é uma **cópia** — produção roda na máquina do cliente, e a virada reimporta o
   arquivo de lá.
 
 ### Como a migração trata os dados
@@ -149,6 +149,7 @@ Achados de uma revisão adversarial multi-agente, todos corrigidos — vale sabe
 - Data futura: validação de faixa no formulário + flag `data_suspeita` + ordenação que ignora
   suspeitas + badge "?" no cartão.
 - Abas ficam montadas (navegar destruía o formulário digitado); foco volta à Placa após salvar.
+  Consultas refaz a busca ao voltar a ficar ativa (um serviço recém-salvo aparece na lista).
 - Backup escreve `.part` e só promove quando completo; falha automática vira banner no app.
 - CSP ativa, instância única, comandos async (janela nunca congela), curingas de LIKE escapados.
 
@@ -160,14 +161,14 @@ Achados de uma revisão adversarial multi-agente, todos corrigidos — vale sabe
 cd app
 npm install
 npm run tauri dev              # app em modo desenvolvimento
-npm test                       # 161 testes TS (Vitest)
+npm test                       # 175 testes TS (Vitest)
 npx vitest run --coverage      # cobertura
 npm run tauri build            # gera o instalador NSIS
 ```
 
 Rust: `cargo test` em `app/src-tauri` (4 testes).
 
-**Testes** — 161 TS + 4 Rust, **93% de linhas / 90% de statements**:
+**Testes** — 175 TS + 4 Rust, **95% de linhas / 93% de statements**:
 
 - Repositórios: o **SQL de produção roda contra SQLite real** (`node:sqlite` + o schema das próprias
   migrations) — busca, fallback, escape de LIKE, paginação, flags de data, lotes, upsert.
@@ -176,14 +177,13 @@ Rust: `cargo test` em `app/src-tauri` (4 testes).
 - Rust: validação de nomes/timestamp, cabeçalho SQLite, poda de backups.
 - O descoberto é a cola do runtime Tauri (abrir janela/banco de verdade), coberta por smoke manual.
 
-Atualizar o sistema do pai: rodar o instalador novo por cima — os dados em
+Atualizar o sistema do cliente: rodar o instalador novo por cima — os dados em
 `%APPDATA%\com.prados.sistema\` ficam intocados.
 
 ---
 
 ## Próximos passos
 
-- [ ] Virada oficial na máquina do pai (reimportar o `.mdb` de lá, Access vira fallback)
+- [ ] Virada oficial na máquina do cliente (reimportar o `.mdb` de lá, Access vira fallback)
 - [ ] Repo no GitHub + auto-update (`tauri-plugin-updater` via GitHub Releases)
 - [x] Estatísticas mensais → virou a aba **Análises**
-- [ ] Ideias: alerta de próxima troca, etiqueta imprimível

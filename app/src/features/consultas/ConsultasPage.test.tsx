@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   criarAmbienteDeTeste,
@@ -30,7 +31,7 @@ beforeEach(async () => {
 afterEach(() => ambiente.banco.fechar());
 
 function renderizar() {
-  return renderizarComDados(<ConsultasPage aoVerHistorico={aoVerHistorico} />, ambiente.dados);
+  return renderizarComDados(<ConsultasPage ativa aoVerHistorico={aoVerHistorico} />, ambiente.dados);
 }
 
 describe("busca", () => {
@@ -56,6 +57,23 @@ describe("busca", () => {
     expect(await screen.findByText(/buscando em carro, produto e placa/i)).toBeInTheDocument();
     expect(screen.getByText("UNO MILLE")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText("HB20")).not.toBeInTheDocument());
+  });
+
+  it("mês digitado na caixa vira busca por período", async () => {
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.type(screen.getByRole("searchbox"), "12/2025");
+    expect(await screen.findByText(/buscando por período/i)).toBeInTheDocument();
+    expect(await screen.findByText("UNO MILLE")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("35S14")).not.toBeInTheDocument());
+  });
+
+  it("falha na busca mostra a mensagem de erro", async () => {
+    vi.spyOn(ambiente.repositorio, "buscar").mockRejectedValue(new Error("banco fechado"));
+    const erroDeConsole = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderizar();
+    expect(await screen.findByText(/não foi possível buscar/i)).toBeInTheDocument();
+    erroDeConsole.mockRestore();
   });
 
   it("clicar na placa abre o histórico", async () => {
@@ -110,6 +128,37 @@ describe("edição pela linha", () => {
     await usuario.clear(campoProduto);
     await usuario.click(screen.getByRole("button", { name: /salvar alterações/i }));
     expect(await screen.findByText(/informe o produto/i)).toBeInTheDocument();
+  });
+
+  it("Cancelar e clique no fundo fecham sem alterar nada", async () => {
+    const usuario = userEvent.setup();
+    const { container } = renderizar();
+
+    await usuario.click(await screen.findByText("HB20"));
+    const campoProduto = screen.getAllByDisplayValue("3 HX8")[0];
+    await usuario.clear(campoProduto);
+    await usuario.type(campoProduto, "OUTRO PRODUTO");
+    await usuario.click(screen.getByRole("button", { name: /cancelar/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await usuario.click(await screen.findByText("HB20"));
+    fireEvent.click(container.querySelector(".fundo-modal") as HTMLElement);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    const [intocado] = await ambiente.repositorio.historico("BBB2222");
+    expect(intocado.produto).toBe("3 HX8");
+  });
+
+  it("excluir desistindo na confirmação não remove nada", async () => {
+    vi.mocked(ask).mockResolvedValueOnce(false);
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.click(await screen.findByText("HB20"));
+    await usuario.click(await screen.findByRole("button", { name: /excluir/i }));
+
+    await waitFor(() => expect(ask).toHaveBeenCalled());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(await ambiente.repositorio.contarServicos()).toBe(3);
   });
 
   it("excluir com confirmação remove o registro da lista e do banco", async () => {

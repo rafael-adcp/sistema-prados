@@ -132,6 +132,41 @@ describe("fluxo do balcão", () => {
     expect(aoVerHistorico).toHaveBeenCalledWith("ABC1234");
   });
 
+  it("Enter em qualquer campo salva o serviço", async () => {
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "CCC3333");
+    await usuario.type(screen.getByPlaceholderText(/HAV 5W30/i), "3 SL{enter}");
+    expect(await screen.findByText(/salvo/i)).toBeInTheDocument();
+    expect(await ambiente.repositorio.contarServicos()).toBe(1);
+  });
+
+  // A primeira barreira é o min/max do próprio campo: o navegador (e o jsdom)
+  // nem deixa o submit disparar. A validação do domínio fica de reserva.
+  it("data absurda trava o campo e nada é salvo", async () => {
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "DDD4444");
+    await usuario.type(screen.getByPlaceholderText(/HAV 5W30/i), "3 SL");
+    const campoData = screen.getByLabelText("Data") as HTMLInputElement;
+    fireEvent.change(campoData, { target: { value: "2107-06-15" } });
+    await usuario.click(screen.getByRole("button", { name: /salvar serviço/i }));
+    expect(campoData.validity.rangeOverflow).toBe(true);
+    expect(screen.queryByText(/salvo/i)).not.toBeInTheDocument();
+    expect(await ambiente.repositorio.contarServicos()).toBe(0);
+  });
+
+  it("sem data aponta o erro no próprio campo", async () => {
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "DDD4444");
+    await usuario.type(screen.getByPlaceholderText(/HAV 5W30/i), "3 SL");
+    fireEvent.change(screen.getByLabelText("Data"), { target: { value: "" } });
+    await usuario.click(screen.getByRole("button", { name: /salvar serviço/i }));
+    expect(await screen.findByText(/informe a data/i)).toBeInTheDocument();
+    expect(await ambiente.repositorio.contarServicos()).toBe(0);
+  });
+
   it("duplo clique no salvar grava só um serviço", async () => {
     const usuario = userEvent.setup();
     renderizar();

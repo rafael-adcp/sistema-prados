@@ -1,6 +1,7 @@
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { useBackup, useRepositorio } from "../../data/ProvedorDeDados";
+import { recarregarApp } from "../../data/recarregarApp";
 import { formatarDataBr } from "../../domain/datas";
 import { MigracaoAccess } from "./MigracaoAccess";
 
@@ -40,9 +41,13 @@ export function BackupPage({ ativa }: { ativa: boolean }) {
   const escolherPasta = async () => {
     const pasta = await open({ directory: true, title: "Escolha a pasta de backup" });
     if (typeof pasta !== "string") return;
-    await backup.definirPasta(pasta);
-    setMensagem({ texto: `Pasta de backup definida: ${pasta}`, tipo: "sucesso" });
-    await recarregar();
+    try {
+      await backup.definirPasta(pasta);
+      setMensagem({ texto: `Pasta de backup definida: ${pasta}`, tipo: "sucesso" });
+      await recarregar();
+    } catch (causa) {
+      setMensagem({ texto: `Não foi possível definir a pasta: ${causa}`, tipo: "erro" });
+    }
   };
 
   const fazerBackupAgora = async () => {
@@ -73,7 +78,7 @@ export function BackupPage({ ativa }: { ativa: boolean }) {
     setOcupado(true);
     try {
       await backup.importarBanco(arquivo);
-      window.location.reload();
+      recarregarApp();
     } catch (causa) {
       setMensagem({ texto: `Importação falhou: ${causa}`, tipo: "erro" });
       setOcupado(false);

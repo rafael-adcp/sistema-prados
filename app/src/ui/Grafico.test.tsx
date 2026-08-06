@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import bb, { bar, line } from "billboard.js";
+import bb, { bar, grid, line } from "billboard.js";
 import { Grafico } from "./Grafico";
 
 vi.mock("billboard.js", () => ({
   default: { generate: vi.fn(() => ({ destroy: vi.fn() })) },
   bar: vi.fn(() => "tipo-barra"),
   line: vi.fn(() => "tipo-linha"),
+  grid: vi.fn(() => ({})),
 }));
 
 const generate = bb.generate as Mock;
@@ -23,6 +24,10 @@ beforeEach(() => {
 });
 
 describe("Grafico", () => {
+  it("registra o módulo grid do billboard ao carregar (sem ele, tooltip e linhas de referência morrem)", () => {
+    expect(grid).toHaveBeenCalled();
+  });
+
   it("mostra o título e entrega séries e rótulos ao billboard", () => {
     render(
       <Grafico
@@ -37,6 +42,7 @@ describe("Grafico", () => {
     expect(opcoes.axis.x.categories).toEqual(["2024", "2025"]);
     expect(opcoes.data.type).toBe("tipo-linha");
     expect(opcoes.line.connectNull).toBe(false);
+    expect(opcoes.tooltip.order).toBe("desc");
     expect(document.querySelector("figcaption")?.textContent).toBe("Trocas por ano");
   });
 

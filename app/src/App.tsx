@@ -77,7 +77,7 @@ export default function App() {
           <NovoServicoPage aoVerHistorico={verHistorico} />
         </div>
         <div hidden={emHistorico || tela.nome !== "consultas"}>
-          <ConsultasPage aoVerHistorico={verHistorico} />
+          <ConsultasPage ativa={tela.nome === "consultas"} aoVerHistorico={verHistorico} />
         </div>
         <div hidden={emHistorico || tela.nome !== "relatorios"}>
           <RelatoriosPage aoVerHistorico={verHistorico} />

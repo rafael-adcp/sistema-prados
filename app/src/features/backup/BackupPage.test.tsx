@@ -17,6 +17,9 @@ const dialogo = vi.hoisted(() => ({
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => dialogo);
 
+const recarregarApp = vi.hoisted(() => vi.fn());
+vi.mock("../../data/recarregarApp", () => ({ recarregarApp }));
+
 let ambiente: AmbienteDeTeste;
 let backup: {
   pastaConfigurada: ReturnType<typeof vi.fn>;
@@ -81,6 +84,24 @@ describe("BackupPage", () => {
     await usuario.click(await screen.findByRole("button", { name: /fazer backup agora/i }));
     const mensagem = await screen.findByText(/backup falhou/i);
     expect(mensagem).toHaveClass("mensagem-erro");
+  });
+
+  it("falha ao gravar a pasta aparece em vermelho", async () => {
+    backup.definirPasta.mockRejectedValue(new Error("banco fechado"));
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.click(await screen.findByRole("button", { name: /escolher pasta/i }));
+    const mensagem = await screen.findByText(/não foi possível definir a pasta/i);
+    expect(mensagem).toHaveClass("mensagem-erro");
+  });
+
+  it("restauração confirmada importa o banco e recarrega o app", async () => {
+    dialogo.open.mockResolvedValueOnce("D:\\prados.db");
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.click(await screen.findByRole("button", { name: /restaurar banco de dados/i }));
+    await waitFor(() => expect(backup.importarBanco).toHaveBeenCalledWith("D:\\prados.db"));
+    await waitFor(() => expect(recarregarApp).toHaveBeenCalled());
   });
 
   it("restauração cancelada no aviso não chama a importação", async () => {

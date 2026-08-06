@@ -1,5 +1,5 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PortaDoBanco, ResultadoDeExecucao } from "../data/portaDoBanco";
@@ -25,7 +25,9 @@ function nomearParametros(parametros: unknown[]): Record<string, SQLInputValue> 
  */
 export function criarBancoDeTeste(): BancoDeTeste {
   const db = new DatabaseSync(":memory:");
-  for (const arquivo of ["001_schema_inicial.sql", "002_compactar_placas.sql"]) {
+  // Todas as migrations, na mesma ordem do Tauri (o prefixo 001_, 002_… ordena).
+  const arquivos = readdirSync(pastaMigrations).filter((nome) => nome.endsWith(".sql")).sort();
+  for (const arquivo of arquivos) {
     db.exec(readFileSync(join(pastaMigrations, arquivo), "utf-8"));
   }
   return {

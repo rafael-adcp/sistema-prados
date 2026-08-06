@@ -23,8 +23,10 @@ beforeEach(async () => {
 
 afterEach(() => ambiente.banco.fechar());
 
+const aoVerHistorico = vi.fn();
+
 function renderizar() {
-  return renderizarComDados(<RelatoriosPage aoVerHistorico={vi.fn()} />, ambiente.dados);
+  return renderizarComDados(<RelatoriosPage aoVerHistorico={aoVerHistorico} />, ambiente.dados);
 }
 
 describe("RelatoriosPage", () => {
@@ -58,5 +60,29 @@ describe("RelatoriosPage", () => {
     await usuario.click(screen.getByRole("button", { name: /gerar relatório/i }));
     expect(await screen.findByText(/placa: ABC-1234/i)).toBeInTheDocument();
     expect(screen.getByText("35S14")).toBeInTheDocument();
+  });
+
+  it("clicar na placa de uma linha do relatório abre o histórico", async () => {
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.selectOptions(screen.getByRole("combobox"), "placa");
+    await usuario.type(screen.getByLabelText("Placa"), "ABC1234");
+    await usuario.click(screen.getByRole("button", { name: /gerar relatório/i }));
+    await usuario.click(await screen.findByRole("button", { name: "ABC1234" }));
+    expect(aoVerHistorico).toHaveBeenCalledWith("ABC1234");
+  });
+
+  it("acima do limite avisa que o relatório está truncado", async () => {
+    const muitos = Array.from({ length: 5001 }, (_, i) =>
+      servicoImportado({ id: i + 1, data: "2025-12-24" }),
+    );
+    await ambiente.repositorio.substituirTodosPor(muitos);
+    const usuario = userEvent.setup();
+    renderizar();
+    fireEvent.change(screen.getByLabelText("De"), { target: { value: "2025-12-01" } });
+    fireEvent.change(screen.getByLabelText("Até"), { target: { value: "2025-12-31" } });
+    await usuario.click(screen.getByRole("button", { name: /gerar relatório/i }));
+    expect(await screen.findByText(/5\.001 serviço\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText(/mostrando os primeiros 5\.000/i)).toBeInTheDocument();
   });
 });
