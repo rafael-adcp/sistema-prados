@@ -292,6 +292,28 @@ Em *Settings → Secrets and variables → Actions*, **um único segredo**:
 Instalação manual continua valendo como plano B: rodar o instalador novo por cima. Os dados
 em `%APPDATA%\com.prados.sistema\` ficam intocados nos dois caminhos.
 
+### Se o app não abrir: "migration N was previously applied but has been modified"
+
+O sqlx guarda o SHA-384 de cada migration dentro do banco e recusa abrir se ele mudar.
+Como as duas migrations são **idempotentes** (garantido por teste), dá para reaplicá-las
+sem perder nada — o conserto é limpar o registro, não o banco:
+
+```powershell
+# 1. Feche o app. 2. Copie o banco antes de mexer.
+cd "$env:APPDATA\com.prados.sistema"
+Copy-Item prados.db "prados-antes-de-limpar-migrations.db"
+
+# 3. Limpe só a tabela de controle (os serviços não são tocados)
+node -e "const {DatabaseSync}=require('node:sqlite'); const d=new DatabaseSync('prados.db'); d.exec('DELETE FROM _sqlx_migrations'); d.close()"
+```
+
+> **A ordem importa**: com a tabela vazia, o **primeiro app que abrir o banco é quem
+> carimba o checksum**. Abra a versão que você pretende manter — se abrir uma antiga, ela
+> carimba o hash dela e a próxima atualização quebra de novo.
+
+A causa raiz (LF × CRLF) está resolvida pelo `.gitattributes`; isto aqui é a rede de
+segurança para bancos criados antes dele.
+
 ---
 
 ## Próximos passos
