@@ -428,6 +428,18 @@ a:focus-visible {
   color: inherit;
 }
 
+/* No aviso de atualização o ✕ divide espaço com um botão de ação de verdade. */
+.acoes-do-aviso {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.acoes-do-aviso .botao-principal {
+  font-size: 15px;
+  padding: 6px 14px;
+}
+
 .mensagem-fechavel {
   display: flex;
   justify-content: space-between;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useBackup } from "./data/ProvedorDeDados";
 import { AnalisesPage } from "./features/analises/AnalisesPage";
+import { AvisoDeAtualizacao } from "./features/atualizacao/AvisoDeAtualizacao";
 import { BackupPage } from "./features/backup/BackupPage";
 import { ConsultasPage } from "./features/consultas/ConsultasPage";
 import { HistoricoPage } from "./features/historico/HistoricoPage";
@@ -63,6 +64,7 @@ export default function App() {
           ))}
         </nav>
       </header>
+      <AvisoDeAtualizacao />
       {avisoBackup !== null && (
         <div className="banner-aviso no-print">
           <span>{avisoBackup}</span>

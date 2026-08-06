@@ -209,13 +209,52 @@ Rust: `cargo test` em `app/src-tauri` (9 testes).
 - Rust: validação de nomes/timestamp, cabeçalho SQLite, poda de backups.
 - O descoberto é a cola do runtime Tauri (abrir janela/banco de verdade), coberta por smoke manual.
 
-Atualizar o sistema do cliente: rodar o instalador novo por cima — os dados em
-`%APPDATA%\com.prados.sistema\` ficam intocados.
+---
+
+## Publicar uma versão nova
+
+O app se atualiza sozinho a partir dos **GitHub Releases**. Do lado do cliente não há
+nada a fazer: ao abrir, o sistema procura versão nova e, se houver, mostra um aviso com
+"Atualizar agora". **Nunca instala sozinho** — a loja atende com o app aberto, e reiniciar
+no meio de um lançamento seria pior que ficar uma semana desatualizado. Sem internet, o
+aviso simplesmente não aparece e nada muda.
+
+Para publicar:
+
+```bash
+# 1. suba a versão nos DOIS arquivos (precisam bater)
+#    app/package.json  →  "version"
+#    app/src-tauri/tauri.conf.json  →  "version"
+# 2. commit, tag e push
+git tag v2.1.0 && git push origin v2.1.0
+```
+
+O workflow `.github/workflows/release.yml` roda a suíte (TS + Rust), gera o instalador
+NSIS assinado e publica o release com o `latest.json` que o app consulta.
+
+### Segredos do repositório (uma vez só)
+
+Em *Settings → Secrets and variables → Actions*:
+
+| Segredo | Valor |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | conteúdo de `~/.tauri/sistema-prados.key` |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | vazio (a chave foi gerada sem senha) |
+
+> **A chave privada não está no repositório e não pode estar.** Ela vive em
+> `%USERPROFILE%\.tauri\sistema-prados.key`. **Guarde uma cópia num lugar seguro**: perdê-la
+> significa que nenhuma instalação existente aceitará mais nenhuma atualização — a única
+> saída seria reinstalar na mão em cada máquina. A pública correspondente está no
+> `tauri.conf.json` e pode ser versionada à vontade.
+
+Instalação manual continua valendo como plano B: rodar o instalador novo por cima. Os dados
+em `%APPDATA%\com.prados.sistema\` ficam intocados nos dois caminhos.
 
 ---
 
 ## Próximos passos
 
 - [ ] Virada oficial na máquina do cliente (reimportar o `.mdb` de lá, Access vira fallback)
-- [ ] Repo no GitHub + auto-update (`tauri-plugin-updater` via GitHub Releases)
+- [ ] Primeiro release pelo workflow (`v2.0.1`) para validar o ciclo de atualização ponta a ponta
+- [x] Repo no GitHub + auto-update (`tauri-plugin-updater` via GitHub Releases)
 - [x] Estatísticas mensais → virou a aba **Análises**

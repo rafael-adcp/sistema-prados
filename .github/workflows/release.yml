@@ -1,0 +1,61 @@
+name: Release
+
+# Dispara ao empurrar uma tag de versao (ex.: git tag v2.1.0 && git push origin v2.1.0).
+# Gera o instalador NSIS assinado e publica o release com o latest.json que o app
+# consulta para se atualizar.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    # Windows e o unico alvo: o app le o Access via PowerShell/OLEDB.
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: app/.nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Instalar dependencias
+        working-directory: app
+        run: npm ci
+
+      # A suite roda antes de gerar release: versao quebrada nao chega no cliente.
+      - name: Testes (TypeScript)
+        working-directory: app
+        run: npm test
+
+      - name: Testes (Rust)
+        working-directory: app/src-tauri
+        run: cargo test
+
+      - name: Build, assinatura e publicacao
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Sem estas duas o instalador sai sem .sig e o app recusa a atualizacao.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: "Sistema Prado ${{ github.ref_name }}"
+          releaseBody: "Instalador para Windows. O sistema ja instalado se atualiza sozinho ao abrir."
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true

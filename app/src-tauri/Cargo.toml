@@ -31,4 +31,6 @@ serde_json = "1"
 # Mesma versão que o tauri-plugin-sql já traz: usada só para conferir, em leitura,
 # se um arquivo escolhido para restauração é mesmo um banco do Sistema Prado.
 sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio"] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
