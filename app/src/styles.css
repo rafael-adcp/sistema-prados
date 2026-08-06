@@ -177,8 +177,14 @@ select:focus {
   border-color: var(--azul);
 }
 
-.novo-servico .botao-principal {
+.acoes-do-novo {
   margin-top: 18px;
+  margin-bottom: 0;
+}
+
+.botao-secundario:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .barra-de-acoes {
@@ -380,6 +386,23 @@ select:focus {
   color: inherit;
 }
 
+.mensagem-fechavel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.mensagem-fechavel button {
+  border: none;
+  background: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: inherit;
+  padding: 0;
+  line-height: 1;
+}
+
 .entrada-maiuscula {
   text-transform: uppercase;
 }
@@ -484,6 +507,13 @@ select:focus {
   font-size: 18px;
 }
 
+.carregando {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
 .tela-erro {
   padding: 40px;
   color: var(--vermelho);
@@ -541,6 +571,216 @@ select:focus {
   max-width: 720px;
 }
 
+/* ---------- Análises ---------- */
+
+.secao-analises {
+  margin-top: 30px;
+}
+
+.secao-analises > h3,
+.cabecalho-do-ano h3 {
+  margin: 0 0 6px;
+  color: var(--azul-escuro);
+  font-size: 20px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 2px solid var(--azul);
+  padding-bottom: 4px;
+}
+
+/* Título da seção com o seletor de ano ao lado: o filtro fica junto do que ele muda. */
+.cabecalho-do-ano {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  margin-bottom: 6px;
+}
+
+.cabecalho-do-ano h3 {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* Recalculando (troca de ano, correção salva): conteúdo antigo esmaece até os novos números chegarem. */
+.painel-analises {
+  transition:
+    opacity 0.2s ease,
+    filter 0.2s ease;
+}
+
+.painel-analises.atualizando {
+  opacity: 0.6;
+  filter: blur(2px);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Cartão flutuante com o girador: deixa claro que está trabalhando, não travado. */
+.sobreposicao-carregando {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--branco);
+  border: 2px solid var(--azul);
+  border-radius: 12px;
+  padding: 16px 26px;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--azul-escuro);
+  box-shadow: 0 18px 50px rgba(26, 39, 51, 0.25);
+  z-index: 50;
+}
+
+.girador {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 3px solid var(--borda);
+  border-top-color: var(--azul);
+  border-radius: 50%;
+  animation: girar 0.8s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cartoes-resumo {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.cartao-resumo {
+  flex: 1;
+  min-width: 200px;
+  background: var(--branco);
+  border: 2px solid var(--azul);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cartao-resumo strong {
+  font-size: 32px;
+  color: var(--azul-escuro);
+}
+
+.cartao-resumo span {
+  color: var(--tinta-suave);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.grafico {
+  margin: 0 0 18px;
+  background: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.grafico figcaption {
+  font-weight: 700;
+  color: var(--azul-escuro);
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+/* billboard: fonte do app, linhas de 2px e grades discretas */
+.grafico .bb svg {
+  font: 13px "Segoe UI", system-ui, sans-serif;
+}
+
+.grafico .bb-line {
+  stroke-width: 2px;
+}
+
+.grafico .bb-ygrid-line line {
+  stroke: var(--tinta-suave);
+  stroke-dasharray: 4 3;
+}
+
+.grafico .bb-ygrid-line text {
+  fill: var(--tinta-suave);
+  font-weight: 600;
+}
+
+.grade-de-graficos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.grade-de-graficos .grafico {
+  margin: 0;
+}
+
+.grade-de-tabelas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+  align-items: start;
+}
+
+.tabela-kpi h3 {
+  margin: 0 0 8px;
+  color: var(--azul-escuro);
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.tabela-kpi th[scope="row"] {
+  text-align: left;
+  background: none;
+  color: var(--tinta);
+  padding: 9px 14px;
+  border-top: 1px solid var(--borda);
+  font-size: 16px;
+}
+
+.acordeao {
+  background: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  margin: 0 0 10px;
+}
+
+.acordeao summary {
+  cursor: pointer;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 17px;
+}
+
+.acordeao summary:hover {
+  background: var(--ciano-heranca);
+  border-radius: 10px;
+}
+
+.acordeao[open] > summary {
+  border-bottom: 1px solid var(--borda);
+  border-radius: 10px 10px 0 0;
+}
+
+.corpo-acordeao {
+  padding: 12px 16px;
+}
+
 /* ---------- Relatórios / impressão ---------- */
 
 .cabecalho-relatorio {
@@ -584,5 +824,20 @@ select:focus {
   .link-placa {
     color: var(--tinta);
     text-decoration: none;
+  }
+
+  .grafico,
+  .cartao-resumo,
+  .tabela-kpi,
+  .acordeao {
+    break-inside: avoid;
+  }
+
+  .grafico svg {
+    max-width: 100%;
+  }
+
+  .cartao-resumo strong {
+    font-size: 22px;
   }
 }

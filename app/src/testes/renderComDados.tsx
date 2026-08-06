@@ -1,5 +1,6 @@
 import { render, type RenderResult } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { AnaliseRepository } from "../data/analiseRepository";
 import type { BackupService } from "../data/backupService";
 import type { ImportacaoService } from "../data/importacaoService";
 import { ProvedorDeDadosParaTeste, type Dados } from "../data/ProvedorDeDados";
@@ -29,6 +30,7 @@ export function criarAmbienteDeTeste(): AmbienteDeTeste {
     repositorio,
     backup: backupInerte(),
     importacao: { importarDoAccess: async () => ({ servicos: [], semData: 0, semPlaca: 0, datasSuspeitas: 0 }) } as unknown as ImportacaoService,
+    analises: new AnaliseRepository(banco),
   };
   return { banco, repositorio, dados };
 }

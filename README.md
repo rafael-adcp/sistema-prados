@@ -73,6 +73,7 @@ Validado com o `.mdb` real: **140.840 = 140.840**, 47.436 placas. O banco result
 | **Novo Serviço** | Placa com autocomplete sobre as 47 mil placas → preenche carro + cartão da última troca. Data padrão hoje, campos grandes, Enter salva. |
 | **Histórico** | Todas as visitas da placa (data, km, produto) + "cliente desde…" + imprimir. |
 | **Relatórios** | Os mesmos 3 do sistema antigo (período, carro, placa), com layout de impressão. |
+| **Análises** | Recria o BI de 2016 sobre os dados atuais: cartões (mês atual × mesmo mês do ano passado × média histórica), 5 gráficos (billboard.js, fork do C3 usado no BI original), KPIs mín/média/máx, sazonalidade, retorno de clientes, top produtos + **Qualidade dos dados** (11 relatórios de inconsistência com correção direto da tela). Só calcula com a aba aberta; seletor de ano (padrão: ano atual — gráficos por ano e sazonalidade seguem multi-anos); imprime. |
 | **Backup** | Semanal automático na abertura + "Fazer backup agora" (`VACUUM INTO`, mantém os 30 últimos) · migração do `.mdb` · restaurar `prados.db`. |
 
 Editar/excluir: clicar em qualquer linha (Consultas ou Histórico) abre o diálogo com Salvar /
@@ -103,11 +104,12 @@ prados/
 └── app/
     ├── src/                  ← React/TS
     │   ├── domain/           ← entidades + regras puras (sem I/O): Servico,
-    │   │                        parse de km, interpretação de busca, datas
-    │   ├── data/             ← ServicoRepository (todo SQL vive aqui, e só aqui)
+    │   │                        parse de km, interpretação de busca, datas, análises
+    │   ├── data/             ← ServicoRepository + AnaliseRepository (todo SQL vive aqui)
     │   ├── features/         ← uma pasta por tela; componentes pequenos
-    │   │   ├── consultas/ · novo-servico/ · historico/ · relatorios/ · backup/
-    │   └── ui/               ← componentes visuais burros e reutilizáveis
+    │   │   ├── consultas/ · novo-servico/ · historico/ · relatorios/ · analises/ · backup/
+    │   └── ui/               ← componentes visuais burros e reutilizáveis (inclui Grafico,
+    │                            wrapper do billboard.js)
     └── src-tauri/            ← Rust mínimo (bootstrap, plugins, operações de arquivo)
         ├── migrations/       ← schema idempotente (tauri-plugin-sql)
         └── scripts/          ← exportar-access.ps1, embutido no binário
@@ -130,6 +132,8 @@ prados/
 | Leitura do Access | PowerShell embutido, ACE 16 → ACE 12 → Jet 4.0 (32 bits) | Funciona em qualquer Windows, mesmo sem Office |
 | Busca por placa | Coluna normalizada + índice (prefixo) | Instantânea |
 | Busca texto livre | Full scan medido (140k é pouco p/ SQLite) | Simplicidade primeiro; FTS5 só se a medição pedir |
+| Gráficos | billboard.js (fork mantido do C3.js do BI de 2016) | Bundle local sem CDN/eval (CSP ok), API conhecida, imprime em vetor |
+| Base das análises | `data IS NOT NULL AND data_suspeita = 0` | Mesmo corte "base sem lixo" do BI antigo, sem hardcode de anos |
 | Instalador | NSIS via `tauri build` | Um `.exe`, clique-e-usa |
 | Ambiente validado | Node 26 · Rust 1.97 · VS Build Tools 2022 · WebView2 | Nada a instalar |
 
@@ -156,14 +160,14 @@ Achados de uma revisão adversarial multi-agente, todos corrigidos — vale sabe
 cd app
 npm install
 npm run tauri dev              # app em modo desenvolvimento
-npm test                       # 109 testes TS (Vitest)
+npm test                       # 161 testes TS (Vitest)
 npx vitest run --coverage      # cobertura
 npm run tauri build            # gera o instalador NSIS
 ```
 
 Rust: `cargo test` em `app/src-tauri` (4 testes).
 
-**Testes** — 109 TS + 4 Rust, **91% de linhas / 89% de statements**:
+**Testes** — 161 TS + 4 Rust, **93% de linhas / 90% de statements**:
 
 - Repositórios: o **SQL de produção roda contra SQLite real** (`node:sqlite` + o schema das próprias
   migrations) — busca, fallback, escape de LIKE, paginação, flags de data, lotes, upsert.
@@ -181,4 +185,5 @@ Atualizar o sistema do pai: rodar o instalador novo por cima — os dados em
 
 - [ ] Virada oficial na máquina do pai (reimportar o `.mdb` de lá, Access vira fallback)
 - [ ] Repo no GitHub + auto-update (`tauri-plugin-updater` via GitHub Releases)
-- [ ] Ideias: alerta de próxima troca, etiqueta imprimível, estatísticas mensais
+- [x] Estatísticas mensais → virou a aba **Análises**
+- [ ] Ideias: alerta de próxima troca, etiqueta imprimível

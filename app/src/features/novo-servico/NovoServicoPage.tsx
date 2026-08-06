@@ -16,6 +16,8 @@ import { CampoPlaca } from "./CampoPlaca";
 import { CartaoUltimaTroca } from "./CartaoUltimaTroca";
 
 const TAMANHO_MINIMO_DE_PLACA = 6;
+/** O aviso de salvo fica o bastante para ler e some sozinho. */
+const DURACAO_DO_AVISO_MS = 6000;
 
 interface UltimaTroca {
   servico: Servico;
@@ -36,6 +38,12 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
   const alterar = (mudanca: Partial<NovoServico>) => {
     setFormulario((atual) => ({ ...atual, ...mudanca }));
   };
+
+  useEffect(() => {
+    if (idSalvo === null) return;
+    const temporizador = setTimeout(() => setIdSalvo(null), DURACAO_DO_AVISO_MS);
+    return () => clearTimeout(temporizador);
+  }, [idSalvo]);
 
   const placaNormalizada = normalizarPlaca(formulario.placa);
 
@@ -75,6 +83,16 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
     formulario.kmRaw === "" &&
     formulario.produto === "";
 
+  /** Recomeço do zero: campos, erros e cartão limpos, foco de volta na placa. */
+  const limpar = () => {
+    setFormulario(novoServicoVazio(hojeIso()));
+    setProblemas({});
+    setErroGeral(null);
+    setIdSalvo(null);
+    setUltima(null);
+    placaRef.current?.focus();
+  };
+
   const salvar = async () => {
     if (salvando) return;
     // clique/Enter repetido logo após salvar: o formulário já está limpo — ignora
@@ -105,7 +123,12 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
     <section className="novo-servico">
       <h2>Novo Serviço</h2>
       {idSalvo !== null && (
-        <p className="mensagem-sucesso">✓ Serviço nº {idSalvo.toLocaleString("pt-BR")} salvo.</p>
+        <p className="mensagem-sucesso mensagem-fechavel">
+          <span>✓ Serviço nº {idSalvo.toLocaleString("pt-BR")} salvo.</span>
+          <button type="button" aria-label="Fechar aviso" onClick={() => setIdSalvo(null)}>
+            ✕
+          </button>
+        </p>
       )}
       <form
         onSubmit={(evento) => {
@@ -173,9 +196,19 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
           )}
         </div>
         {erroGeral !== null && <p className="mensagem-erro">{erroGeral}</p>}
-        <button type="submit" className="botao-principal" disabled={salvando}>
-          {salvando ? "Salvando…" : "Salvar serviço"}
-        </button>
+        <div className="barra-de-acoes acoes-do-novo">
+          <button type="submit" className="botao-principal" disabled={salvando}>
+            {salvando ? "Salvando…" : "Salvar serviço"}
+          </button>
+          <button
+            type="button"
+            className="botao-secundario"
+            disabled={formularioIntocado}
+            onClick={limpar}
+          >
+            Limpar campos
+          </button>
+        </div>
       </form>
     </section>
   );

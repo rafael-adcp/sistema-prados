@@ -17,7 +17,7 @@ export interface SugestaoDePlaca {
   data: string | null;
 }
 
-interface LinhaServico {
+export interface LinhaServico {
   id: number;
   carro: string;
   km: number | null;
@@ -28,11 +28,11 @@ interface LinhaServico {
   data_suspeita: number;
 }
 
-const COLUNAS = "id, carro, km, km_raw, placa, produto, data, data_suspeita";
+export const COLUNAS = "id, carro, km, km_raw, placa, produto, data, data_suspeita";
 /** Limite superior de um range de prefixo (maior que qualquer caractere de placa). */
 const FIM_DO_PREFIXO = "￿";
 
-function paraServico(linha: LinhaServico): Servico {
+export function paraServico(linha: LinhaServico): Servico {
   return {
     id: linha.id,
     carro: linha.carro,

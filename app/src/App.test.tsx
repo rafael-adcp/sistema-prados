@@ -12,6 +12,13 @@ import {
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(async () => true), open: vi.fn() }));
 
+// O billboard.js exige medidas de SVG que o jsdom não tem; a aba Análises testa o resto.
+vi.mock("billboard.js", () => ({
+  default: { generate: vi.fn(() => ({ destroy: vi.fn() })) },
+  bar: vi.fn(() => "barra"),
+  line: vi.fn(() => "linha"),
+}));
+
 let ambiente: AmbienteDeTeste;
 
 beforeEach(async () => {
@@ -35,6 +42,18 @@ describe("navegação sem perder estado", () => {
     await usuario.click(screen.getByRole("button", { name: "Novo Serviço" }));
     await usuario.click(screen.getByRole("button", { name: "Consultas" }));
     expect(screen.getByRole("searchbox")).toHaveValue("ABC1234");
+  });
+
+  it("a aba Análises só calcula quando aberta e mostra as seções", async () => {
+    const usuario = userEvent.setup();
+    const contarBase = vi.spyOn(ambiente.dados.analises, "contarBase");
+    renderizarComDados(<App />, ambiente.dados);
+    expect(contarBase).not.toHaveBeenCalled();
+
+    await usuario.click(screen.getByRole("button", { name: "Análises" }));
+    expect(await screen.findByText("Números")).toBeInTheDocument();
+    expect(screen.getByText("Qualidade dos dados")).toBeInTheDocument();
+    expect(contarBase).toHaveBeenCalled();
   });
 
   it("histórico aberto de Consultas volta para Consultas", async () => {

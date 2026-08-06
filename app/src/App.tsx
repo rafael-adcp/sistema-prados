@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useBackup } from "./data/ProvedorDeDados";
+import { AnalisesPage } from "./features/analises/AnalisesPage";
 import { BackupPage } from "./features/backup/BackupPage";
 import { ConsultasPage } from "./features/consultas/ConsultasPage";
 import { HistoricoPage } from "./features/historico/HistoricoPage";
 import { NovoServicoPage } from "./features/novo-servico/NovoServicoPage";
 import { RelatoriosPage } from "./features/relatorios/RelatoriosPage";
 
-type Aba = "novo" | "consultas" | "relatorios" | "backup";
+type Aba = "novo" | "consultas" | "relatorios" | "analises" | "backup";
 
 type Tela = { nome: Aba } | { nome: "historico"; placa: string; origem: Aba };
 
@@ -14,6 +15,7 @@ const ABAS: { nome: Aba; rotulo: string }[] = [
   { nome: "novo", rotulo: "Novo Serviço" },
   { nome: "consultas", rotulo: "Consultas" },
   { nome: "relatorios", rotulo: "Relatórios" },
+  { nome: "analises", rotulo: "Análises" },
   { nome: "backup", rotulo: "Backup" },
 ];
 
@@ -79,6 +81,9 @@ export default function App() {
         </div>
         <div hidden={emHistorico || tela.nome !== "relatorios"}>
           <RelatoriosPage aoVerHistorico={verHistorico} />
+        </div>
+        <div hidden={emHistorico || tela.nome !== "analises"}>
+          <AnalisesPage ativa={tela.nome === "analises"} aoVerHistorico={verHistorico} />
         </div>
         <div hidden={emHistorico || tela.nome !== "backup"}>
           <BackupPage ativa={tela.nome === "backup"} />
