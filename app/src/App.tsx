@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useBackup } from "./data/ProvedorDeDados";
+import { useBackup, useVersao } from "./data/ProvedorDeDados";
+import { hojeIso } from "./domain/datas";
 import { AnalisesPage } from "./features/analises/AnalisesPage";
 import { AvisoDeAtualizacao } from "./features/atualizacao/AvisoDeAtualizacao";
 import { BackupPage } from "./features/backup/BackupPage";
@@ -23,8 +24,18 @@ const ABAS: { nome: Aba; rotulo: string }[] = [
 export default function App() {
   const [tela, setTela] = useState<Tela>({ nome: "novo" });
   const [avisoBackup, setAvisoBackup] = useState<string | null>(null);
+  const [versaoEmUso, setVersaoEmUso] = useState<string | null>(null);
   const backup = useBackup();
+  const versao = useVersao();
   const backupJaVerificado = useRef(false);
+
+  // Carimba a data quando o número muda; o cabeçalho só mostra o número.
+  useEffect(() => {
+    versao
+      .registrarAbertura(hojeIso())
+      .then((emUso) => setVersaoEmUso(emUso.numero))
+      .catch((causa) => console.error("Não foi possível ler a versão:", causa));
+  }, [versao]);
 
   useEffect(() => {
     if (backupJaVerificado.current) return;
@@ -50,7 +61,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="cabecalho no-print">
-        <h1>Super Troca de Óleo Prado's</h1>
+        <h1>
+          Super Troca de Óleo Prado's
+          {versaoEmUso !== null && <span className="versao-do-app">versão {versaoEmUso}</span>}
+        </h1>
         <nav>
           {ABAS.map((aba) => (
             <button

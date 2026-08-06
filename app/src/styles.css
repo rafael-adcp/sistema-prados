@@ -428,6 +428,16 @@ a:focus-visible {
   color: inherit;
 }
 
+/* Versão ao lado do título: presente para conferir, discreta para não competir
+   com o nome da loja. */
+.versao-do-app {
+  margin-left: 12px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--tinta-suave);
+  vertical-align: middle;
+}
+
 /* No aviso de atualização o ✕ divide espaço com um botão de ação de verdade. */
 .acoes-do-aviso {
   display: flex;

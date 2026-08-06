@@ -1,13 +1,18 @@
 import { render, type RenderResult } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { AnaliseRepository } from "../data/analiseRepository";
+import { ConfigRepository } from "../data/configRepository";
 import type { BackupService } from "../data/backupService";
 import type { ImportacaoService } from "../data/importacaoService";
 import { ProvedorDeDadosParaTeste, type Dados } from "../data/ProvedorDeDados";
 import { QualidadeRepository } from "../data/qualidadeRepository";
 import { ServicoRepository } from "../data/servicoRepository";
+import { VersaoService } from "../data/versaoService";
 import type { ServicoImportado } from "../domain/importarAccess";
 import { criarBancoDeTeste, type BancoDeTeste } from "./bancoDeTeste";
+
+/** Versão fixa nos testes: o binário real não existe fora do Tauri. */
+export const VERSAO_DE_TESTE = "2.0.0";
 
 export interface AmbienteDeTeste {
   banco: BancoDeTeste;
@@ -33,6 +38,7 @@ export function criarAmbienteDeTeste(): AmbienteDeTeste {
     importacao: { importarDoAccess: async () => ({ servicos: [], semData: 0, semPlaca: 0, datasSuspeitas: 0 }) } as unknown as ImportacaoService,
     analises: new AnaliseRepository(banco),
     qualidade: new QualidadeRepository(banco),
+    versao: new VersaoService(new ConfigRepository(banco), async () => VERSAO_DE_TESTE),
   };
   return { banco, repositorio, dados };
 }

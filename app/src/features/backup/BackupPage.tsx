@@ -1,6 +1,6 @@
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
-import { useBackup, useRepositorio } from "../../data/ProvedorDeDados";
+import { useBackup, useRepositorio, useVersao } from "../../data/ProvedorDeDados";
 import { recarregarApp } from "../../data/recarregarApp";
 import { formatarDataBr } from "../../domain/datas";
 import { Carregando } from "../../ui/Carregando";
@@ -8,6 +8,7 @@ import { MigracaoAccess } from "./MigracaoAccess";
 
 interface Situacao {
   totalDeServicos: number;
+  versao: { numero: string; desde: string | null };
   pastaDeBackup: string | null;
   ultimoBackupEm: string | null;
 }
@@ -26,18 +27,20 @@ const DURACAO_DO_AVISO_MS = 9000;
 export function BackupPage({ ativa }: { ativa: boolean }) {
   const repositorio = useRepositorio();
   const backup = useBackup();
+  const versao = useVersao();
   const [situacao, setSituacao] = useState<Situacao | null>(null);
   const [erroDaSituacao, setErroDaSituacao] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
   const recarregar = async () => {
-    const [totalDeServicos, pastaDeBackup, ultimoBackupEm] = await Promise.all([
+    const [totalDeServicos, pastaDeBackup, ultimoBackupEm, versaoEmUso] = await Promise.all([
       repositorio.contarServicos(),
       backup.pastaConfigurada(),
       backup.ultimoBackupEm(),
+      versao.lerEmUso(),
     ]);
-    setSituacao({ totalDeServicos, pastaDeBackup, ultimoBackupEm });
+    setSituacao({ totalDeServicos, pastaDeBackup, ultimoBackupEm, versao: versaoEmUso });
     setErroDaSituacao(null);
   };
 
@@ -167,6 +170,11 @@ export function BackupPage({ ativa }: { ativa: boolean }) {
       )}
 
       <dl className="ficha">
+        <dt>Versão do sistema</dt>
+        <dd>
+          {situacao.versao.numero}
+          {situacao.versao.desde !== null && ` — em uso desde ${formatarDataBr(situacao.versao.desde)}`}
+        </dd>
         <dt>Serviços registrados</dt>
         <dd>{situacao.totalDeServicos.toLocaleString("pt-BR")}</dd>
         <dt>Pasta de backup</dt>

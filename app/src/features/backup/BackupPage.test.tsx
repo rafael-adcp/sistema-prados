@@ -79,6 +79,12 @@ describe("BackupPage", () => {
     expect(screen.getByRole("button", { name: /migrar do sistema antigo/i })).toBeInTheDocument();
   });
 
+  it("a ficha mostra a versão e desde quando ela está em uso", async () => {
+    await ambiente.dados.versao.registrarAbertura("2026-08-06");
+    renderizar();
+    expect(await screen.findByText(/2\.0\.0 — em uso desde 06\/08\/2026/)).toBeInTheDocument();
+  });
+
   it("escolher pasta grava a configuração e confirma", async () => {
     const usuario = userEvent.setup();
     renderizar();

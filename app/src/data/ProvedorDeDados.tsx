@@ -8,6 +8,8 @@ import { obterBanco } from "./database";
 import { ImportacaoService } from "./importacaoService";
 import { QualidadeRepository } from "./qualidadeRepository";
 import { ServicoRepository } from "./servicoRepository";
+import { versaoDoApp } from "./versaoDoApp";
+import { VersaoService } from "./versaoService";
 
 export interface Dados {
   repositorio: ServicoRepository;
@@ -15,6 +17,7 @@ export interface Dados {
   importacao: ImportacaoService;
   analises: AnaliseRepository;
   qualidade: QualidadeRepository;
+  versao: VersaoService;
 }
 
 const ContextoDeDados = createContext<Dados | null>(null);
@@ -39,15 +42,17 @@ export function ProvedorDeDados({ children }: { children: ReactNode }) {
     obterBanco()
       .then((db) => {
         const repositorio = new ServicoRepository(db);
+        const config = new ConfigRepository(db);
         setDados({
           repositorio,
-          backup: new BackupService(db, new ConfigRepository(db)),
+          backup: new BackupService(db, config),
           importacao: new ImportacaoService(
             repositorio,
             copiarBancoPara(db, "prados-antes-da-migracao"),
           ),
           analises: new AnaliseRepository(db),
           qualidade: new QualidadeRepository(db),
+          versao: new VersaoService(config, versaoDoApp),
         });
       })
       .catch((causa) => setErro(String(causa)));
@@ -89,4 +94,8 @@ export function useAnalises(): AnaliseRepository {
 
 export function useQualidade(): QualidadeRepository {
   return useDados().qualidade;
+}
+
+export function useVersao(): VersaoService {
+  return useDados().versao;
 }

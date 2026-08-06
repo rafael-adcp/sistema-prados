@@ -3,10 +3,12 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { hojeIso } from "./domain/datas";
 import {
   criarAmbienteDeTeste,
   renderizarComDados,
   servicoImportado,
+  VERSAO_DE_TESTE,
   type AmbienteDeTeste,
 } from "./testes/renderComDados";
 
@@ -31,6 +33,24 @@ beforeEach(async () => {
 });
 
 afterEach(() => ambiente.banco.fechar());
+
+// Sem isto na tela, uma atualização que falhou em silêncio é indistinguível de
+// uma que deu certo — e dá para conferir por telefone.
+describe("versão à vista", () => {
+  it("mostra a versão em uso no cabeçalho", async () => {
+    renderizarComDados(<App />, ambiente.dados);
+    expect(await screen.findByText(`versão ${VERSAO_DE_TESTE}`)).toBeInTheDocument();
+  });
+
+  it("a abertura carimba desde quando esta versão está em uso", async () => {
+    renderizarComDados(<App />, ambiente.dados);
+    await screen.findByText(`versão ${VERSAO_DE_TESTE}`);
+
+    const emUso = await ambiente.dados.versao.lerEmUso();
+    expect(emUso.numero).toBe(VERSAO_DE_TESTE);
+    expect(emUso.desde).toBe(hojeIso());
+  });
+});
 
 describe("navegação sem perder estado", () => {
   it("a busca digitada em Consultas sobrevive à troca de abas", async () => {
