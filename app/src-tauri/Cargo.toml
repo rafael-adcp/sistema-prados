@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.3.0"
+version = "2.3.1"
 description = "Sistema — Super Troca de Óleo Prado's"
 authors = ["Rafael Prado"]
 edition = "2021"
