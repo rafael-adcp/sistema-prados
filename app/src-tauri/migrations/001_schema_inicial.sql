@@ -1,6 +1,6 @@
 -- Schema do Sistema Prado 2.0.
 -- Idempotente (IF NOT EXISTS): o banco pode nascer vazio aqui ou chegar pronto
--- da migração do Access (migracao/import-csv.mjs), que cria exatamente este schema.
+-- por restauração de backup, que traz exatamente este schema.
 
 CREATE TABLE IF NOT EXISTS servicos (
   id            INTEGER PRIMARY KEY,
