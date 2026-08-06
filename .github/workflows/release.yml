@@ -29,7 +29,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Na mao a tag ja existe; pelo site precisamos do branch para commitar.
           ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
@@ -46,7 +46,7 @@ jobs:
             echo "numero=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: app/.nvmrc
           cache: npm
@@ -94,7 +94,8 @@ jobs:
         working-directory: app/src-tauri
         run: cargo test
 
-      - name: Build, assinatura e publicacao
+      - name: Build, assinatura e anexos (release ainda como rascunho)
+        id: tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -111,6 +112,28 @@ jobs:
           tagName: ${{ steps.versao.outputs.tag }}
           releaseName: "Sistema Prado ${{ steps.versao.outputs.tag }}"
           releaseBody: "Instalador para Windows. O sistema ja instalado avisa da versao nova ao abrir."
-          releaseDraft: false
+          # Nasce como RASCUNHO de proposito. Com "immutable releases" ligado no
+          # repositorio, um release publicado nao aceita mais nenhum anexo — e o
+          # tauri-action cria o release primeiro e sobe os arquivos depois, o que
+          # falhava com "Cannot upload assets to an immutable release". Como
+          # rascunho ele aceita os anexos; o passo seguinte publica.
+          releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
+
+      # So agora o release vira publico — ja com .exe, .sig e latest.json dentro.
+      # Sem isto ele fica como rascunho e o endpoint releases/latest nao o enxerga.
+      - name: Publicar o release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          resposta=$(curl -sS -X PATCH \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/${{ steps.tauri.outputs.releaseId }}" \
+            -d '{"draft": false, "make_latest": "true"}')
+          echo "$resposta" | grep -q '"draft": *false' || {
+            echo "::error::O release nao saiu do rascunho. Resposta da API:"; echo "$resposta"; exit 1;
+          }
+          echo "Release publicado: $(echo "$resposta" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).html_url")"
