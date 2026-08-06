@@ -20,6 +20,7 @@ vi.mock("billboard.js", () => ({
   bar: vi.fn(() => "barra"),
   line: vi.fn(() => "linha"),
   grid: vi.fn(() => ({})),
+  zoom: vi.fn(() => ({})),
 }));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(async () => true), open: vi.fn() }));

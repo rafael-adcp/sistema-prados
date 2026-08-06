@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import bb, { bar, grid, line } from "billboard.js";
+import bb, { bar, grid, line, zoom } from "billboard.js";
 import { Grafico } from "./Grafico";
 
 vi.mock("billboard.js", () => ({
@@ -9,6 +9,7 @@ vi.mock("billboard.js", () => ({
   bar: vi.fn(() => "tipo-barra"),
   line: vi.fn(() => "tipo-linha"),
   grid: vi.fn(() => ({})),
+  zoom: vi.fn(() => ({})),
 }));
 
 const generate = bb.generate as Mock;
@@ -24,6 +25,25 @@ beforeEach(() => {
 });
 
 describe("Grafico", () => {
+  // Mesma armadilha do grid: no build ESM do billboard 4 o zoom é módulo opt-in.
+  // Sem registrar, as opções abaixo são aceitas caladas e arrastar não faz nada.
+  it("registra o módulo zoom do billboard ao carregar", () => {
+    expect(zoom).toHaveBeenCalled();
+  });
+
+  it("liga o zoom por arrasto com reajuste do eixo Y e botão de voltar", () => {
+    render(
+      <Grafico titulo="Trocas por ano" tipo="linha" rotulosX={["2025"]} series={[{ nome: "a", pontos: [1] }]} />,
+    );
+    const zoomConfig = opcoesDaUltimaGeracao().zoom;
+    // `type` precisa ser irmão de `enabled` (o padrão é "wheel"); aninhar
+    // enabled: { type } é o formato antigo do C3 e deixaria o arrasto inerte.
+    expect(zoomConfig.enabled).toBe(true);
+    expect(zoomConfig.type).toBe("drag");
+    expect(zoomConfig.rescale).toBe(true);
+    expect(zoomConfig.resetButton).toEqual({ text: "Ver tudo" });
+  });
+
   // As cores são as do billboard: nenhum gráfico passa de 10 séries (o mensal é
   // capado em 10 anos), então a paleta padrão de 10 tons nunca cicla.
   it("não configura paleta — deixa a lib decidir as cores", () => {

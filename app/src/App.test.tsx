@@ -18,6 +18,7 @@ vi.mock("billboard.js", () => ({
   bar: vi.fn(() => "barra"),
   line: vi.fn(() => "linha"),
   grid: vi.fn(() => ({})),
+  zoom: vi.fn(() => ({})),
 }));
 
 let ambiente: AmbienteDeTeste;

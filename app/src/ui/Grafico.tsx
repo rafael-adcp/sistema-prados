@@ -1,4 +1,4 @@
-import bb, { bar, grid, line } from "billboard.js";
+import bb, { bar, grid, line, zoom } from "billboard.js";
 import "billboard.js/dist/billboard.css";
 import { useEffect, useRef } from "react";
 
@@ -6,6 +6,9 @@ import { useEffect, useRef } from "react";
 // de referência não renderizam E o handler de mouse lança TypeError a cada
 // movimento (showAxisGridFocus ausente) — o tooltip nunca chega a abrir.
 grid();
+// zoom também é opt-in (módulo de interação). Sem esta linha, as opções de zoom
+// são aceitas em silêncio e nada acontece.
+zoom();
 
 export interface SerieDoGrafico {
   nome: string;
@@ -73,6 +76,16 @@ export function Grafico({ titulo, tipo, rotulosX, series, referencias, formatarV
       tooltip: { order: "desc", format: { value: (valor: number) => formatar(valor) } },
       // Com muitas séries os marcadores viram poeira sobre as linhas.
       point: { show: rotulosX.length <= 31 && series.length <= 6 },
+      // Arrastar sobre o gráfico amplia o trecho selecionado. `enabled` é boolean
+      // e `type` é irmão dele (no C3 antigo era enabled: { type }), e o padrão é
+      // "wheel" — sem declarar o type, o arrastar não faz nada. `rescale` reajusta
+      // o eixo Y ao trecho, senão a lupa não adianta em série achatada.
+      zoom: {
+        enabled: true,
+        type: "drag",
+        rescale: true,
+        resetButton: { text: "Ver tudo" },
+      },
     });
     return () => {
       grafico.destroy();
