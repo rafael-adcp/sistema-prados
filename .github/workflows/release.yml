@@ -1,13 +1,25 @@
 name: Release
 
-# Dispara ao empurrar uma tag de versao (ex.: git tag v2.1.0 && git push origin v2.1.0).
-# Gera o instalador NSIS assinado e publica o release com o latest.json que o app
-# consulta para se atualizar.
+# Dois caminhos para publicar:
+#
+#  1. Pelo site: aba Actions -> Release -> "Run workflow" -> digitar a versao.
+#     O proprio job sobe a versao nos 3 arquivos, commita, cria a tag e publica.
+#  2. Na mao: git tag v2.1.0 && git push origin v2.1.0
+#
+# Por que tudo num workflow so, em vez de um que so cria a tag e "triga" este:
+# eventos gerados pelo GITHUB_TOKEN NAO disparam outros workflows (o GitHub
+# bloqueia para evitar loop). A tag seria criada e o release nunca aconteceria,
+# sem erro nenhum. A alternativa seria um PAT — mais um segredo para vazar.
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versao nova, sem o v (ex.: 2.1.0)"
+        required: true
+        type: string
 
 jobs:
   release:
@@ -18,6 +30,21 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Na mao a tag ja existe; pelo site precisamos do branch para commitar.
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+
+      - name: Definir a versao a publicar
+        id: versao
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=v${{ inputs.versao }}" >> "$GITHUB_OUTPUT"
+            echo "numero=${{ inputs.versao }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "numero=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -27,9 +54,28 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: app/src-tauri
+
+      - name: Subir a versao, commitar e criar a tag
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.versao.outputs.tag }}"; then
+            echo "::error::A tag ${{ steps.versao.outputs.tag }} ja existe."
+            exit 1
+          fi
+          node scripts/definir-versao.mjs "${{ steps.versao.outputs.numero }}"
+          # Mantem o Cargo.lock coerente com a versao nova do pacote.
+          (cd app/src-tauri && cargo update --workspace --quiet)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/package.json app/src-tauri/tauri.conf.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock
+          git commit -m "Versao ${{ steps.versao.outputs.numero }}"
+          git tag "${{ steps.versao.outputs.tag }}"
+          git push origin HEAD:main
+          git push origin "${{ steps.versao.outputs.tag }}"
 
       - name: Instalar dependencias
         working-directory: app
@@ -53,9 +99,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: app
-          tagName: ${{ github.ref_name }}
-          releaseName: "Sistema Prado ${{ github.ref_name }}"
-          releaseBody: "Instalador para Windows. O sistema ja instalado se atualiza sozinho ao abrir."
+          tagName: ${{ steps.versao.outputs.tag }}
+          releaseName: "Sistema Prado ${{ steps.versao.outputs.tag }}"
+          releaseBody: "Instalador para Windows. O sistema ja instalado avisa da versao nova ao abrir."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true

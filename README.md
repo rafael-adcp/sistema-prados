@@ -219,18 +219,26 @@ nada a fazer: ao abrir, o sistema procura versão nova e, se houver, mostra um a
 no meio de um lançamento seria pior que ficar uma semana desatualizado. Sem internet, o
 aviso simplesmente não aparece e nada muda.
 
-Para publicar:
+Para publicar, **pelo site** (jeito recomendado — não precisa nem clonar o repo):
+
+> GitHub → aba **Actions** → **Release** → **Run workflow** → digitar a versão (ex.: `2.1.0`).
+
+O workflow sobe a versão nos três arquivos, commita, cria a tag, roda a suíte (TS + Rust),
+gera o instalador NSIS assinado e publica o release com o `latest.json` que o app consulta.
+Se a tag já existir, ele para antes de fazer qualquer coisa.
+
+Pela linha de comando também funciona:
 
 ```bash
-# 1. suba a versão nos DOIS arquivos (precisam bater)
-#    app/package.json  →  "version"
-#    app/src-tauri/tauri.conf.json  →  "version"
-# 2. commit, tag e push
-git tag v2.1.0 && git push origin v2.1.0
+node scripts/definir-versao.mjs 2.1.0   # os 3 arquivos de versão de uma vez
+git commit -am "Versao 2.1.0"
+git tag v2.1.0 && git push origin main --tags
 ```
 
-O workflow `.github/workflows/release.yml` roda a suíte (TS + Rust), gera o instalador
-NSIS assinado e publica o release com o `latest.json` que o app consulta.
+> **Por que tudo num workflow só, e não um que cria a tag disparando outro:** eventos
+> gerados pelo `GITHUB_TOKEN` não disparam workflows (o GitHub bloqueia para evitar loop).
+> A tag seria criada e o release nunca aconteceria, sem erro nenhum. A alternativa seria um
+> Personal Access Token — mais um segredo para guardar.
 
 ### Segredos do repositório (uma vez só)
 
