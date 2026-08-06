@@ -98,9 +98,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Sem estas duas o instalador sai sem .sig e o app recusa a atualizacao.
+          # Sem esta o instalador sai sem .sig e o app recusa a atualizacao.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # A chave foi gerada SEM senha, entao aqui vai vazio de proposito — nao
+          # e um secret. O campo de secret do GitHub nao aceita valor vazio, e
+          # quem tentava resolver com um espaco quebrava a assinatura com
+          # "Wrong password for that key": " " e uma senha de um caractere.
+          # Se um dia a chave for regerada COM senha, troque por um secret.
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           projectPath: app
           tagName: ${{ steps.versao.outputs.tag }}

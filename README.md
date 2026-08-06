@@ -263,14 +263,18 @@ git tag v2.1.0 && git push origin main --tags
 > A tag seria criada e o release nunca aconteceria, sem erro nenhum. A alternativa seria um
 > Personal Access Token — mais um segredo para guardar.
 
-### Segredos do repositório (uma vez só)
+### Segredo do repositório (uma vez só)
 
-Em *Settings → Secrets and variables → Actions*:
+Em *Settings → Secrets and variables → Actions*, **um único segredo**:
 
 | Segredo | Valor |
 |---|---|
 | `TAURI_SIGNING_PRIVATE_KEY` | conteúdo de `~/.tauri/sistema-prados.key` |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | vazio (a chave foi gerada sem senha) |
+
+> Não crie um secret para a senha. A chave é **sem senha**, e o workflow já passa
+> `TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""` direto. O campo de secret do GitHub não aceita
+> valor vazio, e "resolver" isso com um espaço quebra a assinatura com
+> `Wrong password for that key` — um espaço é uma senha de um caractere, não vazio.
 
 > **A chave privada não está no repositório e não pode estar.** Ela vive em
 > `%USERPROFILE%\.tauri\sistema-prados.key`. **Guarde uma cópia num lugar seguro**: perdê-la
