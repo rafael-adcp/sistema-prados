@@ -193,14 +193,37 @@ Achados de uma revisão adversarial multi-agente, todos corrigidos — vale sabe
 cd app
 npm install
 npm run tauri dev              # app em modo desenvolvimento
-npm test                       # 205 testes TS (Vitest)
+npm test                       # 217 testes TS (Vitest)
 npx vitest run --coverage      # cobertura
-npm run tauri build            # gera o instalador NSIS
 ```
 
-Rust: `cargo test` em `app/src-tauri` (9 testes).
+Rust: `cargo test` em `app/src-tauri` (10 testes).
 
-**Testes** — 205 TS + 9 Rust, **94% de linhas / 92% de statements**:
+### Gerar o instalador na mão
+
+O caminho normal é publicar pelo GitHub (seção acima). Localmente — para levar numa
+máquina sem esperar CI — as duas variáveis de assinatura são **obrigatórias**:
+
+```powershell
+cd app
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content "$env:USERPROFILE\.tauri\sistema-prados.key" -Raw
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+npm run tauri build
+```
+
+Saem dois arquivos em `app/src-tauri/target/release/bundle/nsis/`: o
+`Sistema Prado_<versao>_x64-setup.exe` (~4 MB) e o `.exe.sig` ao lado. Levar só o `.exe`.
+
+> **Sem as variáveis o build falha** com *"A public key has been found, but no private
+> key"* — porém **só depois de já ter gerado o `.exe`**. O resultado é um instalador novo
+> convivendo com o `.sig` da build anterior: um par descasado que parece válido e faz a
+> atualização ser recusada. Se um build falhar assim, apague os dois arquivos antes de
+> tentar de novo; nunca confie no `.sig` que sobrou.
+
+Um instalador gerado localmente **continua recebendo atualização** do GitHub depois: o que
+vale é a chave pública compilada no app e o endpoint, não quem gerou o `.exe`.
+
+**Testes** — 217 TS + 10 Rust, **94% de linhas / 92% de statements**:
 
 - Repositórios: o **SQL de produção roda contra SQLite real** (`node:sqlite` + o schema das próprias
   migrations) — busca, fallback, escape de LIKE, paginação, flags de data, lotes, upsert.
