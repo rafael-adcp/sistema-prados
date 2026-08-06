@@ -31,6 +31,19 @@ describe("converterCsvDoAccess", () => {
     '"10","UNO","240244","BIW5232","4 BR SJ","2042-02-10"',
   ].join("\n");
 
+  // No .mdb real são 40 registros em caixa mista. Ficando assim no banco, eles
+  // apareciam como produto duplicado no "mais usados" e como falso "mesma placa
+  // com carros diferentes" — só por causa da caixa.
+  it("normaliza carro e produto para maiúsculas, como a escrita do dia a dia", () => {
+    const misto = [
+      "codigo,carro,km,placa,produto,data",
+      '"1","STRADA TREKKING FIRE FLEX 1.4 8v","100","AAA0001","3,5 HAV 5W30 g9890f","2020-01-10"',
+    ].join("\n");
+    const [servico] = converterCsvDoAccess(misto, HOJE).servicos;
+    expect(servico.carro).toBe("STRADA TREKKING FIRE FLEX 1.4 8V");
+    expect(servico.produto).toBe("3,5 HAV 5W30 G9890F");
+  });
+
   it("preserva todos os registros com o código original", () => {
     const resultado = converterCsvDoAccess(csv, HOJE);
     expect(resultado.servicos.map((s) => s.id)).toEqual([2, 7, 9, 10]);

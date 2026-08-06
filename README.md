@@ -25,7 +25,7 @@ Tudo acontece pela tela do sistema — nada de scripts, Node ou linha de comando
    `Sistema Prado.mdb` → confirme. A tela mostra o progresso e termina com o resumo (ex.: "140.840
    serviços importados"). Confira se o total bate com o Access.
 3. **Backup**: aba Backup → **"Escolher pasta de backup…"** → uma pasta do OneDrive ou um pendrive
-   que fica na loja. A partir daí o backup é automático (semanal, guarda os 30 últimos).
+   que fica na loja. A partir daí o backup é automático (diário, na abertura, guarda os 10 últimos).
 4. Pronto. Ícone na área de trabalho, dois cliques, usar.
 
 ### Transição segura
@@ -58,7 +58,13 @@ Nada é descartado. O original é sempre preservado:
 - `id` = CódigoDoServiço original (1 a 140.908)
 - `km_raw` (texto original) + `km` numérico (2.382 sem km numérico, texto preservado)
 - `placa` em forma canônica única (compacta, maiúsculas) na escrita e na leitura
+- `carro` e `produto` em maiúsculas — a mesma convenção da digitação do dia a dia (no `.mdb` há
+  40 registros em caixa mista; misturar as duas convenções duplicava linhas em "Produtos mais
+  usados" e gerava falso "mesma placa com carros diferentes")
 - `data` em ISO; 22 datas impossíveis mantidas com flag `data_suspeita`
+
+O `.ps1` resolve as colunas do Access **pelo nome** (sem acento, sem caixa), não pela posição: o
+`.mdb` roda desde 2006 e um campo acrescentado no meio faria a migração gravar dados trocados.
 
 Validado com o `.mdb` real: **140.840 = 140.840**, 47.436 placas. O banco resultante tem **16,3 MB**
 — o `.mdb` tinha 157 MB, era ~90% inchaço por falta de compactação.
@@ -74,11 +80,18 @@ Validado com o `.mdb` real: **140.840 = 140.840**, 47.436 placas. O banco result
 | **Histórico** | Todas as visitas da placa (data, km, produto) + "cliente desde…" + imprimir. |
 | **Relatórios** | Os mesmos 3 do sistema antigo (período, carro, placa), com layout de impressão. |
 | **Análises** | Recria o BI de 2016 sobre os dados atuais: cartões (mês atual × mesmo mês do ano passado × média histórica), 5 gráficos (billboard.js, fork do C3 usado no BI original), KPIs mín/média/máx, sazonalidade, retorno de clientes, top produtos + **Qualidade dos dados** (11 relatórios de inconsistência com correção direto da tela). Só calcula com a aba aberta; seletor de ano (padrão: ano atual — gráficos por ano e sazonalidade seguem multi-anos); imprime. |
-| **Backup** | Semanal automático na abertura + "Fazer backup agora" (`VACUUM INTO`, mantém os 30 últimos) · migração do `.mdb` · restaurar `prados.db`. |
+| **Backup** | Diário automático na abertura + "Fazer backup agora" (`VACUUM INTO`, mantém os 10 últimos) · migração do `.mdb` · restaurar `prados.db`. |
 
-Editar/excluir: clicar em qualquer linha (Consultas ou Histórico) abre o diálogo com Salvar /
-Excluir / Cancelar. Registro legado sem data pode ser editado sem forçar data; data absurda continua
-barrada. Erros de validação aparecem no próprio campo.
+Editar/excluir: clicar em qualquer linha (Consultas ou Histórico) — ou no botão **Editar** da linha,
+que é o caminho pelo teclado — abre o diálogo com Salvar / Excluir / Cancelar (Escape fecha).
+Registro legado sem data pode ser editado sem forçar data; data absurda continua barrada. Erros de
+validação aparecem no próprio campo.
+
+> **"Carros diferentes atendidos por ano" não bate com o BI de 2016.** A procedure antiga
+> (`pr_qtde_placas_distintasXano`) fazia `distinct placa, data`, ou seja contava placa-**dia**: um
+> carro que voltou em março contava 2. Aqui conta carros distintos de verdade
+> (`COUNT(DISTINCT placa)`), então o número é **menor** que o do dashboard antigo — e é o que o
+> título sempre prometeu.
 
 ### Performance no banco real (140.840 registros)
 
@@ -105,7 +118,8 @@ prados/
     ├── src/                  ← React/TS
     │   ├── domain/           ← entidades + regras puras (sem I/O): Servico,
     │   │                        parse de km, interpretação de busca, datas, análises
-    │   ├── data/             ← ServicoRepository + AnaliseRepository (todo SQL vive aqui)
+    │   ├── data/             ← ServicoRepository · AnaliseRepository (números) ·
+    │   │                        QualidadeRepository (inconsistências) — todo SQL vive aqui
     │   ├── features/         ← uma pasta por tela; componentes pequenos
     │   │   ├── consultas/ · novo-servico/ · historico/ · relatorios/ · analises/ · backup/
     │   └── ui/               ← componentes visuais burros e reutilizáveis (inclui Grafico,
@@ -142,6 +156,23 @@ prados/
 Achados de uma revisão adversarial multi-agente, todos corrigidos — vale saber que existem antes de
 "simplificar" algo:
 
+- **Migração do `.mdb` recusa arquivo sem nenhum serviço** e **tira cópia do banco
+  (`prados-antes-da-migracao-*.db`) antes do `DELETE`**. Importação que encolheria a base pede
+  segunda confirmação com os dois números — é o cenário "refiz a migração depois de duas semanas
+  usando o sistema novo". Antes, um `.mdb` errado apagava tudo e a tela dizia "✓ concluída: 0".
+- **Restaurar banco confere o schema**, não só os 16 bytes mágicos do SQLite (qualquer `.db` de
+  outro programa passava e o app abria zerado), e a confirmação mostra quantos serviços há no
+  arquivo escolhido × quantos há agora.
+- **`substituir_banco` desfaz tudo se o rename final falhar** — antes a pasta ficava sem
+  `prados.db` e o app subia com um banco novo e vazio, parecendo perda de dados.
+- Carro autopreenchido é substituído quando a placa muda; o que a pessoa digitou, nunca. O cartão
+  de última troca só aparece para a placa que está no campo.
+- O formulário de Novo Serviço ressincroniza a data quando o app passa a virada do dia aberto
+  (a loja não fecha o app; o primeiro serviço de cada manhã ia com a data de ontem).
+- Autocomplete de placa e edição de serviço funcionam **pelo teclado** (setas/Enter/Escape,
+  botão "Editar" na linha); o diálogo prende o foco e fecha no Escape.
+- Busca sobe o termo para maiúsculas: o `LIKE` do SQLite só ignora caixa em ASCII, e sem isso
+  procurar "camarão" não achava "CAMARÃO".
 - Salvar tem guard `salvando` + botão desabilitado (duplo clique gravava 2x).
 - Importar banco é **substituição atômica** (copia → renomeia o antigo como cópia → rename), com
   validação antes de fechar a conexão e recuperação se falhar no meio.
@@ -161,14 +192,14 @@ Achados de uma revisão adversarial multi-agente, todos corrigidos — vale sabe
 cd app
 npm install
 npm run tauri dev              # app em modo desenvolvimento
-npm test                       # 175 testes TS (Vitest)
+npm test                       # 205 testes TS (Vitest)
 npx vitest run --coverage      # cobertura
 npm run tauri build            # gera o instalador NSIS
 ```
 
-Rust: `cargo test` em `app/src-tauri` (4 testes).
+Rust: `cargo test` em `app/src-tauri` (9 testes).
 
-**Testes** — 175 TS + 4 Rust, **95% de linhas / 93% de statements**:
+**Testes** — 205 TS + 9 Rust, **94% de linhas / 92% de statements**:
 
 - Repositórios: o **SQL de produção roda contra SQLite real** (`node:sqlite` + o schema das próprias
   migrations) — busca, fallback, escape de LIKE, paginação, flags de data, lotes, upsert.

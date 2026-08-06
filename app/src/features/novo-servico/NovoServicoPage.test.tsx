@@ -96,6 +96,161 @@ describe("fluxo do balcão", () => {
     expect(limpar).toBeDisabled();
   });
 
+  // A loja deixa o app aberto direto; antes, o primeiro serviço de cada manhã ia
+  // para o banco com a data de ontem — plausível o bastante para ninguém notar.
+  it("app aberto durante a virada do dia grava o serviço com a data de hoje", async () => {
+    vi.setSystemTime(new Date(2026, 7, 10, 18, 0));
+    const usuario = userEvent.setup();
+    renderizar();
+    expect(screen.getByLabelText("Data")).toHaveValue("2026-08-10");
+
+    vi.setSystemTime(new Date(2026, 7, 11, 8, 0)); // vira o dia com o app aberto
+    await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "AAA0001");
+    await usuario.type(screen.getByPlaceholderText(/HAV 5W30/i), "3 SL");
+    await usuario.click(screen.getByRole("button", { name: /salvar serviço/i }));
+
+    await waitFor(async () => expect(await ambiente.repositorio.contarServicos()).toBe(1));
+    const [gravado] = await ambiente.repositorio.historico("AAA0001");
+    expect(gravado.data).toBe("2026-08-11");
+  });
+
+  it("data escolhida à mão é respeitada e não vira hoje", async () => {
+    vi.setSystemTime(new Date(2026, 7, 11, 8, 0));
+    const usuario = userEvent.setup();
+    renderizar();
+
+    fireEvent.change(screen.getByLabelText("Data"), { target: { value: "2026-08-03" } });
+    await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "AAA0002");
+    await usuario.type(screen.getByPlaceholderText(/HAV 5W30/i), "3 SL");
+    await usuario.click(screen.getByRole("button", { name: /salvar serviço/i }));
+
+    await waitFor(async () => expect(await ambiente.repositorio.contarServicos()).toBe(1));
+    const [gravado] = await ambiente.repositorio.historico("AAA0002");
+    expect(gravado.data).toBe("2026-08-03");
+  });
+
+  // Se os campos fossem limpos aqui, o serviço seria perdido em silêncio: a pessoa
+  // vê o formulário vazio, entende que gravou, e o registro não existe.
+  it("falha ao salvar mostra o erro e preserva tudo o que foi digitado", async () => {
+    vi.spyOn(ambiente.repositorio, "inserir").mockRejectedValue(new Error("disco cheio"));
+    const usuario = userEvent.setup();
+    renderizar();
+
+    await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "AAA0001");
+    await usuario.type(screen.getByPlaceholderText(/GOL 1.0 16V/i), "GOL 1.0");
+    await usuario.type(screen.getByPlaceholderText(/HAV 5W30/i), "3 SL");
+    await usuario.click(screen.getByRole("button", { name: /salvar serviço/i }));
+
+    expect(await screen.findByText(/não foi possível salvar.*disco cheio/i)).toBeInTheDocument();
+    expect(screen.queryByText(/✓ Serviço nº/)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/ABC1234/i)).toHaveValue("AAA0001");
+    expect(screen.getByPlaceholderText(/GOL 1.0 16V/i)).toHaveValue("GOL 1.0");
+    expect(screen.getByPlaceholderText(/HAV 5W30/i)).toHaveValue("3 SL");
+    // e dá para tentar de novo
+    expect(screen.getByRole("button", { name: /salvar serviço/i })).toBeEnabled();
+  });
+
+  it("escolhe a placa pelo teclado: seta para baixo destaca, Enter seleciona", async () => {
+    await ambiente.repositorio.substituirTodosPor([
+      servicoImportado({ id: 1, placa: "ABC1234", carro: "35S14", data: "2024-04-08" }),
+      servicoImportado({ id: 2, placa: "ABC1235", carro: "UNO MILLE", data: "2024-05-09" }),
+    ]);
+    const usuario = userEvent.setup();
+    renderizar();
+    const campoPlaca = screen.getByPlaceholderText(/ABC1234/i);
+
+    await usuario.type(campoPlaca, "ABC12");
+    expect(await screen.findByRole("option", { name: /ABC1234/ })).toBeInTheDocument();
+
+    // a lista vem da visita mais recente para a mais antiga: ABC1235, depois ABC1234
+    await usuario.keyboard("{ArrowDown}");
+    expect(screen.getByRole("option", { name: /ABC1235/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await usuario.keyboard("{ArrowDown}");
+    expect(screen.getByRole("option", { name: /ABC1234/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await usuario.keyboard("{Enter}");
+    expect(campoPlaca).toHaveValue("ABC1234");
+    expect(screen.getByPlaceholderText(/GOL 1.0 16V/i)).toHaveValue("35S14");
+    // Enter que seleciona a placa não pode salvar o serviço junto
+    expect(await ambiente.repositorio.contarServicos()).toBe(2);
+    expect(screen.queryByText(/salvo/i)).not.toBeInTheDocument();
+  });
+
+  it("Escape fecha a lista de sugestões sem apagar o que foi digitado", async () => {
+    await ambiente.repositorio.substituirTodosPor([
+      servicoImportado({ id: 1, placa: "ABC1234", carro: "35S14", data: "2024-04-08" }),
+    ]);
+    const usuario = userEvent.setup();
+    renderizar();
+    const campoPlaca = screen.getByPlaceholderText(/ABC1234/i);
+
+    await usuario.type(campoPlaca, "ABC12");
+    expect(await screen.findByRole("option", { name: /ABC1234/ })).toBeInTheDocument();
+
+    await usuario.keyboard("{Escape}");
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(campoPlaca).toHaveValue("ABC12");
+  });
+
+  it("corrigir a placa digitada troca o carro autopreenchido pelo do veículo certo", async () => {
+    await ambiente.repositorio.substituirTodosPor([
+      servicoImportado({ id: 1, placa: "ABC1234", carro: "GOL 1.0", data: "2024-04-08" }),
+      servicoImportado({ id: 2, placa: "ABC1235", carro: "UNO MILLE", data: "2024-05-09" }),
+    ]);
+    const usuario = userEvent.setup();
+    renderizar();
+    const campoPlaca = screen.getByPlaceholderText(/ABC1234/i);
+    const campoCarro = screen.getByPlaceholderText(/GOL 1.0 16V/i);
+
+    await usuario.type(campoPlaca, "ABC1234");
+    await waitFor(() => expect(campoCarro).toHaveValue("GOL 1.0"));
+
+    // erro de digitação percebido: corrige o último dígito
+    await usuario.type(campoPlaca, "{backspace}5");
+    await waitFor(() => expect(campoCarro).toHaveValue("UNO MILLE"));
+    expect(await screen.findByText("ABC1235")).toBeInTheDocument();
+  });
+
+  it("carro digitado à mão não é sobrescrito pelo autopreenchimento", async () => {
+    await ambiente.repositorio.substituirTodosPor([
+      servicoImportado({ id: 1, placa: "ABC1234", carro: "GOL 1.0", data: "2024-04-08" }),
+    ]);
+    const usuario = userEvent.setup();
+    renderizar();
+
+    await usuario.type(screen.getByPlaceholderText(/GOL 1.0 16V/i), "PALIO WEEKEND");
+    await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "ABC1234");
+    expect(await screen.findByText(/última troca desta placa/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/GOL 1.0 16V/i)).toHaveValue("PALIO WEEKEND");
+  });
+
+  // A consulta da 2ª placa fica pendurada de propósito: é exatamente a janela em que
+  // o cartão exibia "Última troca desta placa" com os dados da placa ANTERIOR.
+  it("o cartão não mostra a última troca da placa anterior enquanto a nova carrega", async () => {
+    await ambiente.repositorio.substituirTodosPor([
+      servicoImportado({ id: 1, placa: "ABC1234", carro: "GOL 1.0", data: "2024-04-08" }),
+      servicoImportado({ id: 2, placa: "ABC1235", carro: "UNO MILLE", data: "2024-05-09" }),
+    ]);
+    const usuario = userEvent.setup();
+    renderizar();
+    const campoPlaca = screen.getByPlaceholderText(/ABC1234/i);
+
+    await usuario.type(campoPlaca, "ABC1234");
+    expect(await screen.findByText("GOL 1.0")).toBeInTheDocument();
+
+    vi.spyOn(ambiente.repositorio, "ultimaTroca").mockReturnValue(new Promise(() => {}));
+    await usuario.type(campoPlaca, "{backspace}5");
+
+    await waitFor(() => expect(campoPlaca).toHaveValue("ABC1235"));
+    expect(screen.queryByText(/última troca desta placa/i)).not.toBeInTheDocument();
+  });
+
   it("autocomplete de placa preenche o carro, mostra a última troca e salva", async () => {
     await ambiente.repositorio.substituirTodosPor([
       servicoImportado({ id: 1, placa: "ABC1234", carro: "35S14", produto: "4 HAV", data: "2024-04-08" }),
@@ -104,7 +259,7 @@ describe("fluxo do balcão", () => {
     renderizar();
 
     await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "ABC12");
-    await usuario.click(await screen.findByRole("button", { name: /ABC1234/ }));
+    await usuario.click(await screen.findByRole("option", { name: /ABC1234/ }));
 
     expect(screen.getByPlaceholderText(/GOL 1.0 16V/i)).toHaveValue("35S14");
     expect(await screen.findByText(/última troca desta placa/i)).toBeInTheDocument();

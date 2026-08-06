@@ -11,7 +11,6 @@ import {
   rotuloDeMes,
   rotuloDeMesCalendario,
   totaisPorFaixa,
-  ultimosAnos,
 } from "./analises";
 
 describe("montarSeriesPorAno", () => {
@@ -77,12 +76,9 @@ describe("números", () => {
 });
 
 describe("períodos e meses", () => {
-  it("periodoDeUltimosAnos inclui o ano corrente", () => {
-    expect(periodoDeUltimosAnos("2026-08-05", 5)).toEqual({ deAno: "2022", ateAno: "2026" });
-  });
-
-  it("ultimosAnos vem em ordem crescente terminando no ano corrente", () => {
-    expect(ultimosAnos("2026-08-05", 3)).toEqual(["2024", "2025", "2026"]);
+  it("periodoDeUltimosAnos inclui o ano corrente na ponta de cima", () => {
+    expect(periodoDeUltimosAnos("2026-08-05", 10)).toEqual({ deAno: "2017", ateAno: "2026" });
+    expect(periodoDeUltimosAnos("2026-08-05", 1)).toEqual({ deAno: "2026", ateAno: "2026" });
   });
 
   it("mesIsoDe e mesmoMesDoAnoAnterior", () => {

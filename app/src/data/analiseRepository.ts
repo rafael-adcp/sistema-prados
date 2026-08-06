@@ -5,66 +5,8 @@ import {
   type RetornoNoAno,
 } from "../domain/analises";
 import { hojeIso } from "../domain/datas";
-import type { Servico } from "../domain/servico";
+import { BASE } from "./baseDeAnalise";
 import type { PortaDoBanco } from "./portaDoBanco";
-import { COLUNAS, paraServico, type LinhaServico } from "./servicoRepository";
-
-/** Registros que entram nas contas: com data e sem suspeita de digitação. */
-const BASE = "data IS NOT NULL AND data_suspeita = 0";
-
-/** Padrões brasileiros de placa na forma canônica (maiúscula, sem hífen). */
-const GLOB_PLACA_ANTIGA = "[A-Z][A-Z][A-Z][0-9][0-9][0-9][0-9]";
-const GLOB_PLACA_MERCOSUL = "[A-Z][A-Z][A-Z][0-9][A-Z][0-9][0-9]";
-
-const GRUPOS_DUPLICADOS = `SELECT placa, data, produto FROM servicos
-       WHERE placa <> '' AND data IS NOT NULL AND produto <> ''
-       GROUP BY placa, data, produto HAVING COUNT(*) > 1`;
-
-export type InconsistenciaListavel =
-  | "semData"
-  | "dataNoFuturo"
-  | "dataAntesDe2000"
-  | "semPlaca"
-  | "placaForaDoPadrao"
-  | "semKm"
-  | "kmIlegivel"
-  | "semProduto"
-  | "semCarro"
-  | "possiveisDuplicados";
-
-export type ContagensDeInconsistencias = Record<
-  InconsistenciaListavel | "mesmaPlacaCarrosDiferentes",
-  number
->;
-
-/**
- * O WHERE de cada relatório de inconsistência — contagem e listagem usam o
- * MESMO filtro, então os números do título sempre batem com a tabela.
- * "dataNoFuturo" é o único que precisa de parâmetro ($1 = hoje).
- */
-const FILTRO_DA_INCONSISTENCIA: Record<InconsistenciaListavel, string> = {
-  semData: "data IS NULL",
-  dataNoFuturo: "data IS NOT NULL AND data > $1",
-  dataAntesDe2000: "data IS NOT NULL AND data < '2000-01-01'",
-  semPlaca: "placa = ''",
-  placaForaDoPadrao: `placa <> '' AND placa NOT GLOB '${GLOB_PLACA_ANTIGA}' AND placa NOT GLOB '${GLOB_PLACA_MERCOSUL}'`,
-  semKm: "km IS NULL AND km_raw = ''",
-  kmIlegivel: "km IS NULL AND km_raw <> ''",
-  semProduto: "produto = ''",
-  semCarro: "carro = ''",
-  possiveisDuplicados: `(placa, data, produto) IN (${GRUPOS_DUPLICADOS})`,
-};
-
-export interface BaseDeAnalise {
-  total: number;
-  validos: number;
-}
-
-export interface PlacaComVariacoes {
-  placa: string;
-  variacoes: number;
-  carros: string;
-}
 
 export interface TotalPorAno {
   ano: string;
@@ -128,83 +70,13 @@ function casePorFaixa(): string {
 }
 
 /**
- * Todo o SQL de agregação e de qualidade de dados da aba Análises.
+ * Os números da oficina na aba Análises: trocas, carros, retorno, sazonalidade.
+ * A qualidade dos dados é assunto do QualidadeRepository — as duas metades
+ * moravam aqui e não compartilhavam nada além do corte BASE.
  * Só leitura — correções passam pelo ServicoRepository, como nas outras telas.
  */
 export class AnaliseRepository {
   constructor(private readonly db: PortaDoBanco) {}
-
-  // ---------- Qualidade dos dados ----------
-
-  async contarBase(): Promise<BaseDeAnalise> {
-    const linhas = await this.db.select<{ total: number; validos: number | null }[]>(
-      `SELECT COUNT(*) AS total, SUM(CASE WHEN ${BASE} THEN 1 ELSE 0 END) AS validos FROM servicos`,
-    );
-    return { total: linhas[0]?.total ?? 0, validos: linhas[0]?.validos ?? 0 };
-  }
-
-  async contarInconsistencias(): Promise<ContagensDeInconsistencias> {
-    const somas = (Object.keys(FILTRO_DA_INCONSISTENCIA) as InconsistenciaListavel[])
-      .filter((tipo) => tipo !== "possiveisDuplicados")
-      .map((tipo) => `SUM(CASE WHEN ${FILTRO_DA_INCONSISTENCIA[tipo]} THEN 1 ELSE 0 END) AS ${tipo}`)
-      .join(", ");
-    const [linhas, duplicados, placasDiferentes] = await Promise.all([
-      this.db.select<Record<string, number | null>[]>(`SELECT ${somas} FROM servicos`, [hojeIso()]),
-      this.db.select<{ total: number | null }[]>(
-        `SELECT SUM(repetidos) AS total FROM (
-           SELECT COUNT(*) AS repetidos FROM servicos
-           WHERE placa <> '' AND data IS NOT NULL AND produto <> ''
-           GROUP BY placa, data, produto HAVING COUNT(*) > 1
-         )`,
-      ),
-      this.db.select<{ total: number }[]>(
-        `SELECT COUNT(*) AS total FROM (
-           SELECT placa FROM servicos WHERE placa <> '' AND carro <> ''
-           GROUP BY placa HAVING COUNT(DISTINCT carro) > 1
-         )`,
-      ),
-    ]);
-    const linha = linhas[0] ?? {};
-    return {
-      semData: linha.semData ?? 0,
-      dataNoFuturo: linha.dataNoFuturo ?? 0,
-      dataAntesDe2000: linha.dataAntesDe2000 ?? 0,
-      semPlaca: linha.semPlaca ?? 0,
-      placaForaDoPadrao: linha.placaForaDoPadrao ?? 0,
-      semKm: linha.semKm ?? 0,
-      kmIlegivel: linha.kmIlegivel ?? 0,
-      semProduto: linha.semProduto ?? 0,
-      semCarro: linha.semCarro ?? 0,
-      possiveisDuplicados: duplicados[0]?.total ?? 0,
-      mesmaPlacaCarrosDiferentes: placasDiferentes[0]?.total ?? 0,
-    };
-  }
-
-  async listarInconsistencia(tipo: InconsistenciaListavel, limite: number): Promise<Servico[]> {
-    const parametros: unknown[] = tipo === "dataNoFuturo" ? [hojeIso()] : [];
-    // Duplicados saem agrupados (placa/data juntas); os demais, do mais recente ao mais antigo.
-    const ordem = tipo === "possiveisDuplicados" ? "ORDER BY placa, data, id" : "ORDER BY id DESC";
-    const linhas = await this.db.select<LinhaServico[]>(
-      `SELECT ${COLUNAS} FROM servicos WHERE ${FILTRO_DA_INCONSISTENCIA[tipo]}
-       ${ordem} LIMIT $${parametros.length + 1}`,
-      [...parametros, limite],
-    );
-    return linhas.map(paraServico);
-  }
-
-  async listarPlacasComCarrosDiferentes(limite: number): Promise<PlacaComVariacoes[]> {
-    return this.db.select<PlacaComVariacoes[]>(
-      `SELECT placa, COUNT(*) AS variacoes, GROUP_CONCAT(carro, ' · ') AS carros FROM (
-         SELECT placa, carro FROM servicos WHERE placa <> '' AND carro <> ''
-         GROUP BY placa, carro ORDER BY placa, carro
-       )
-       GROUP BY placa HAVING COUNT(*) > 1
-       ORDER BY variacoes DESC, placa LIMIT $1`,
-      [limite],
-    );
-  }
-
-  // ---------- Números da oficina ----------
 
   async trocasPorAnoEMes(periodo?: PeriodoDeAnos): Promise<TrocasPorAnoEMes[]> {
     const filtro = this.filtroDaBase(periodo);
@@ -226,14 +98,20 @@ export class AnaliseRepository {
     );
   }
 
-  /** Placas distintas por ano: o mesmo carro no mesmo dia conta uma vez só. */
+  /**
+   * Carros diferentes atendidos por ano — o mesmo carro conta uma vez só no ano,
+   * tenha voltado quantas vezes for.
+   *
+   * O BI de 2016 (`pr_qtde_placas_distintasXano`) fazia `distinct placa, data`, o
+   * que na prática contava placa-DIA: um carro que voltou em março contava 2. O
+   * nome e o título do gráfico sempre prometeram carros distintos, então quem
+   * estava errado era o SQL. Números daqui são menores que os do BI antigo.
+   */
   async placasDistintasPorAno(periodo?: PeriodoDeAnos): Promise<TotalPorAno[]> {
     const filtro = this.filtroDaBase(periodo);
     return this.db.select<TotalPorAno[]>(
-      `SELECT ano, COUNT(*) AS total FROM (
-         SELECT DISTINCT substr(data, 1, 4) AS ano, placa, data
-         FROM servicos WHERE ${filtro.where} AND placa <> ''
-       )
+      `SELECT substr(data, 1, 4) AS ano, COUNT(DISTINCT placa) AS total
+       FROM servicos WHERE ${filtro.where} AND placa <> ''
        GROUP BY ano ORDER BY ano`,
       filtro.parametros,
     );

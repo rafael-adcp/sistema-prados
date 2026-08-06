@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useAnalises } from "../../data/ProvedorDeDados";
+import { useAnalises, useQualidade } from "../../data/ProvedorDeDados";
 import { formatarDataBr, hojeIso } from "../../domain/datas";
 import { Carregando } from "../../ui/Carregando";
 import { carregarPainel, type PainelDeAnalises } from "./carregarPainel";
-import { SecaoNumeros } from "./SecaoNumeros";
+import { SecaoHistorico } from "./SecaoHistorico";
+import { SecaoIndicadoresDoAno } from "./SecaoIndicadoresDoAno";
 import { SecaoQualidade } from "./SecaoQualidade";
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
  */
 export function AnalisesPage({ ativa, aoVerHistorico }: Props) {
   const analises = useAnalises();
+  const qualidade = useQualidade();
   const [painel, setPainel] = useState<PainelDeAnalises | null>(null);
   const [anoEscolhido, setAnoEscolhido] = useState(() => hojeIso().slice(0, 4));
   const [versao, setVersao] = useState(0);
@@ -28,7 +30,7 @@ export function AnalisesPage({ ativa, aoVerHistorico }: Props) {
     let cancelada = false;
     setErro(null);
     setRecalculando(true);
-    carregarPainel(analises, hojeIso(), anoEscolhido)
+    carregarPainel(analises, qualidade, hojeIso(), anoEscolhido)
       .then((novo) => {
         if (!cancelada) setPainel(novo);
       })
@@ -94,9 +96,10 @@ export function AnalisesPage({ ativa, aoVerHistorico }: Props) {
               com data suspeita (veja Qualidade dos dados abaixo).
             </p>
           )}
-          <SecaoNumeros
-            numeros={painel.numeros}
-            hoje={hoje}
+          <SecaoHistorico numeros={painel.numeros} hoje={hoje} />
+          <SecaoIndicadoresDoAno
+            indicadores={painel.numeros}
+            retornoPorAno={painel.numeros.retornoPorAno}
             anoEscolhido={anoEscolhido}
             anos={painel.anos}
             aoEscolherAno={setAnoEscolhido}

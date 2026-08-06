@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 const MAGIC_SQLITE: &[u8; 16] = b"SQLite format 3\0";
-const BACKUPS_MANTIDOS: usize = 30;
+/// Com backup diário, são os últimos 10 dias de histórico (~160 MB na pasta).
+const BACKUPS_MANTIDOS: usize = 10;
 
 fn pasta_dados(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let pasta = app.path().app_config_dir().map_err(|e| e.to_string())?;
@@ -54,14 +55,58 @@ fn nomes_de_backup(pasta: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(backups)
 }
 
-/// Confere se o arquivo escolhido é um banco SQLite. Chamado ANTES de fechar a
-/// conexão atual, para que o erro comum (arquivo errado) não derrube o app.
+/// Confere que o arquivo escolhido é um banco DO SISTEMA PRADO e devolve quantos
+/// serviços ele tem. Chamado ANTES de fechar a conexão atual, para que o erro
+/// comum (arquivo errado) não derrube o app.
+///
+/// Os 16 bytes mágicos sozinhos deixavam passar qualquer SQLite — o `History` do
+/// Chrome, por exemplo: as migrations criavam `servicos`/`config` vazias e o app
+/// abria zerado, parecendo perda de dados. Aqui o schema é conferido de verdade,
+/// em somente leitura, e a contagem volta para a tela poder mostrá-la na
+/// confirmação ("este arquivo tem N serviços, o atual tem M").
 #[tauri::command]
-pub async fn validar_banco(caminho: String) -> Result<(), String> {
+pub async fn validar_banco(caminho: String) -> Result<i64, String> {
     if !eh_sqlite(Path::new(&caminho))? {
         return Err("O arquivo escolhido não é um banco SQLite válido".into());
     }
-    Ok(())
+    contar_servicos_do_arquivo(&caminho).await
+}
+
+async fn contar_servicos_do_arquivo(caminho: &str) -> Result<i64, String> {
+    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::{ConnectOptions, Connection};
+
+    let opcoes = SqliteConnectOptions::new()
+        .filename(caminho)
+        .read_only(true)
+        .create_if_missing(false);
+    let mut conexao = opcoes
+        .connect()
+        .await
+        .map_err(|e| format!("Não foi possível abrir o arquivo escolhido: {e}"))?;
+
+    let tabelas: Vec<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('servicos', 'config')",
+    )
+    .fetch_all(&mut conexao)
+    .await
+    .map_err(|e| format!("Não foi possível ler o conteúdo do arquivo: {e}"))?;
+
+    if !tabelas.iter().any(|t| t == "servicos") {
+        let _ = conexao.close().await;
+        return Err(
+            "O arquivo escolhido é um banco SQLite, mas não é do Sistema Prado \
+             (não tem a tabela de serviços)."
+                .into(),
+        );
+    }
+
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM servicos")
+        .fetch_one(&mut conexao)
+        .await
+        .map_err(|e| format!("Não foi possível contar os serviços do arquivo: {e}"))?;
+    let _ = conexao.close().await;
+    Ok(total)
 }
 
 /// Substitui o banco atual pelo arquivo escolhido, sem nunca destruir nada
@@ -92,18 +137,62 @@ pub async fn substituir_banco(
     let novo = pasta.join("prados.db.novo");
     fs::copy(&origem, &novo).map_err(|e| format!("Falha ao copiar o novo banco: {e}"))?;
 
-    for sufixo in ["-wal", "-shm"] {
-        let residuo = pasta.join(format!("prados.db{sufixo}"));
-        if residuo.exists() {
-            let guardado = pasta.join(format!("prados-substituido-{timestamp}.db{sufixo}"));
-            fs::rename(&residuo, &guardado).map_err(|e| e.to_string())?;
+    ativar_banco_novo(&pasta, &novo, &destino, &timestamp)
+}
+
+/// Um rótulo `prados-substituido-<timestamp>` que ainda não existe na pasta.
+/// Duas restaurações no mesmo segundo geravam o mesmo nome e o rename do Windows
+/// sobrescrevia — a primeira cópia de segurança sumia calada.
+fn rotulo_livre(pasta: &Path, timestamp: &str) -> String {
+    let mut rotulo = format!("prados-substituido-{timestamp}");
+    let mut n = 2;
+    while pasta.join(format!("{rotulo}.db")).exists() {
+        rotulo = format!("prados-substituido-{timestamp}-{n}");
+        n += 1;
+    }
+    rotulo
+}
+
+/// Guarda o banco atual (e seu WAL) e ativa o novo. Se a ativação falhar, TUDO
+/// volta para o lugar: sem isso, um rename final malsucedido (antivírus segurando
+/// o handle, disco cheio) deixava a pasta sem `prados.db` e o app subia com um
+/// banco vazio recém-criado pelas migrations, parecendo que os dados sumiram.
+fn ativar_banco_novo(
+    pasta: &Path,
+    novo: &Path,
+    destino: &Path,
+    timestamp: &str,
+) -> Result<(), String> {
+    let rotulo = rotulo_livre(pasta, timestamp);
+    let mut movidos: Vec<(PathBuf, PathBuf)> = Vec::new(); // (lugar original, onde guardei)
+
+    let desfazer = |movidos: &[(PathBuf, PathBuf)]| {
+        for (original, guardado) in movidos.iter().rev() {
+            let _ = fs::rename(guardado, original);
         }
+    };
+
+    for sufixo in ["-wal", "-shm", ""] {
+        let atual = pasta.join(format!("prados.db{sufixo}"));
+        if !atual.exists() {
+            continue;
+        }
+        let guardado = pasta.join(format!("{rotulo}.db{sufixo}"));
+        if let Err(e) = fs::rename(&atual, &guardado) {
+            desfazer(&movidos);
+            let _ = fs::remove_file(novo);
+            return Err(format!("Falha ao guardar o banco atual: {e}"));
+        }
+        movidos.push((atual, guardado));
     }
-    if destino.exists() {
-        let guardado = pasta.join(format!("prados-substituido-{timestamp}.db"));
-        fs::rename(&destino, &guardado).map_err(|e| e.to_string())?;
+
+    if let Err(e) = fs::rename(novo, destino) {
+        desfazer(&movidos);
+        let _ = fs::remove_file(novo);
+        return Err(format!(
+            "Falha ao ativar o novo banco: {e}. O banco anterior foi mantido no lugar."
+        ));
     }
-    fs::rename(&novo, &destino).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -175,9 +264,13 @@ pub async fn exportar_access(caminho_mdb: String) -> Result<String, String> {
 }
 
 /// Lê um arquivo de texto (o CSV exportado) para o frontend, removendo o BOM.
+///
+/// O CSV é apagado em seguida: ele carrega o cadastro inteiro (140 mil linhas com
+/// placa, carro e data) e ficava para sempre no %TEMP%, com nome previsível.
 #[tauri::command]
 pub async fn ler_arquivo_texto(caminho: String) -> Result<String, String> {
     let texto = fs::read_to_string(&caminho).map_err(|e| e.to_string())?;
+    let _ = fs::remove_file(&caminho);
     Ok(texto.trim_start_matches('\u{feff}').to_string())
 }
 
@@ -241,6 +334,133 @@ mod testes {
         for arquivo in [valido, invalido, curto] {
             let _ = fs::remove_file(arquivo);
         }
+    }
+
+    /// Pasta temporária isolada por teste (sem depender de crate externa).
+    fn pasta_temporaria(nome: &str) -> PathBuf {
+        let pasta = std::env::temp_dir().join(nome);
+        let _ = fs::remove_dir_all(&pasta);
+        fs::create_dir_all(&pasta).unwrap();
+        pasta
+    }
+
+    #[test]
+    fn falha_ao_ativar_devolve_o_banco_anterior_para_o_lugar() {
+        let pasta = pasta_temporaria("teste-prados-rollback");
+        fs::write(pasta.join("prados.db"), b"BANCO ANTIGO").unwrap();
+        fs::write(pasta.join("prados.db-wal"), b"WAL ANTIGO").unwrap();
+        // o "novo" não existe: é a falha que antes deixava a pasta sem prados.db
+        let novo = pasta.join("prados.db.novo");
+        let destino = pasta.join("prados.db");
+
+        let erro = ativar_banco_novo(&pasta, &novo, &destino, "20260806-010203").unwrap_err();
+
+        assert!(erro.contains("mantido no lugar"), "erro pouco claro: {erro}");
+        assert_eq!(fs::read(&destino).unwrap(), b"BANCO ANTIGO");
+        assert_eq!(fs::read(pasta.join("prados.db-wal")).unwrap(), b"WAL ANTIGO");
+        assert!(!pasta.join("prados-substituido-20260806-010203.db").exists());
+        fs::remove_dir_all(&pasta).unwrap();
+    }
+
+    #[test]
+    fn ativacao_bem_sucedida_guarda_o_anterior_e_promove_o_novo() {
+        let pasta = pasta_temporaria("teste-prados-ativar");
+        fs::write(pasta.join("prados.db"), b"BANCO ANTIGO").unwrap();
+        let novo = pasta.join("prados.db.novo");
+        fs::write(&novo, b"BANCO NOVO").unwrap();
+        let destino = pasta.join("prados.db");
+
+        ativar_banco_novo(&pasta, &novo, &destino, "20260806-010203").unwrap();
+
+        assert_eq!(fs::read(&destino).unwrap(), b"BANCO NOVO");
+        assert_eq!(
+            fs::read(pasta.join("prados-substituido-20260806-010203.db")).unwrap(),
+            b"BANCO ANTIGO"
+        );
+        assert!(!novo.exists());
+        fs::remove_dir_all(&pasta).unwrap();
+    }
+
+    /// Cria um SQLite de verdade no caminho pedido, com o schema informado.
+    async fn criar_banco(caminho: &Path, schema: &str) {
+        use sqlx::sqlite::SqliteConnectOptions;
+        use sqlx::{ConnectOptions, Connection};
+        let mut conexao = SqliteConnectOptions::new()
+            .filename(caminho)
+            .create_if_missing(true)
+            .connect()
+            .await
+            .unwrap();
+        sqlx::raw_sql(schema).execute(&mut conexao).await.unwrap();
+        conexao.close().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn conta_os_servicos_de_um_banco_do_prados() {
+        let pasta = pasta_temporaria("teste-prados-validar-ok");
+        let banco = pasta.join("prados.db");
+        criar_banco(
+            &banco,
+            "CREATE TABLE servicos (id INTEGER PRIMARY KEY);
+             CREATE TABLE config (chave TEXT PRIMARY KEY, valor TEXT);
+             INSERT INTO servicos (id) VALUES (1), (2), (3);",
+        )
+        .await;
+
+        let total = contar_servicos_do_arquivo(&banco.to_string_lossy())
+            .await
+            .unwrap();
+
+        assert_eq!(total, 3);
+        let _ = fs::remove_dir_all(&pasta);
+    }
+
+    /// O caso que motivou a mudança: escolher, no diálogo de restauração, um .db
+    /// de outro programa. Antes ele passava (16 bytes mágicos) e o app abria zerado.
+    #[tokio::test]
+    async fn recusa_um_sqlite_que_nao_e_do_sistema_prado() {
+        let pasta = pasta_temporaria("teste-prados-validar-alheio");
+        let banco = pasta.join("historico-do-navegador.db");
+        criar_banco(&banco, "CREATE TABLE downloads (id INTEGER PRIMARY KEY);").await;
+
+        let erro = contar_servicos_do_arquivo(&banco.to_string_lossy())
+            .await
+            .unwrap_err();
+
+        assert!(erro.contains("não é do Sistema Prado"), "erro inesperado: {erro}");
+        let _ = fs::remove_dir_all(&pasta);
+    }
+
+    #[tokio::test]
+    async fn poda_mantem_so_os_mais_recentes_e_limpa_part_orfao() {
+        let pasta = pasta_temporaria("teste-prados-poda-limite");
+        for dia in 1..=13 {
+            fs::write(pasta.join(format!("prados-backup-202608{dia:02}-000000.db")), b"x").unwrap();
+        }
+        fs::write(pasta.join("prados-backup-20260814-000000.db.part"), b"x").unwrap();
+        fs::write(pasta.join("nao-e-backup.db"), b"x").unwrap();
+
+        let removidos = podar_backups(pasta.to_string_lossy().into_owned()).await.unwrap();
+
+        let restantes = nomes_de_backup(&pasta).unwrap();
+        assert_eq!(restantes.len(), BACKUPS_MANTIDOS);
+        assert_eq!(removidos, 4); // 3 backups velhos + 1 .part órfão
+        // sobraram os 10 mais NOVOS: 04 a 13
+        let primeiro = restantes[0].file_name().unwrap().to_string_lossy().into_owned();
+        assert_eq!(primeiro, "prados-backup-20260804-000000.db");
+        assert!(pasta.join("nao-e-backup.db").exists()); // não é da nossa conta
+        fs::remove_dir_all(&pasta).unwrap();
+    }
+
+    #[test]
+    fn duas_restauracoes_no_mesmo_segundo_nao_sobrescrevem_a_copia() {
+        let pasta = pasta_temporaria("teste-prados-rotulo");
+        fs::write(pasta.join("prados-substituido-20260806-010203.db"), b"PRIMEIRA").unwrap();
+
+        let rotulo = rotulo_livre(&pasta, "20260806-010203");
+
+        assert_eq!(rotulo, "prados-substituido-20260806-010203-2");
+        fs::remove_dir_all(&pasta).unwrap();
     }
 
     #[test]

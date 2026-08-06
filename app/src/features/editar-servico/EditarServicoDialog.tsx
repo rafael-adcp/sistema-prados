@@ -1,5 +1,5 @@
 import { ask } from "@tauri-apps/plugin-dialog";
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { useRepositorio } from "../../data/ProvedorDeDados";
 import { hojeIso } from "../../domain/datas";
 import {
@@ -24,6 +24,7 @@ export function EditarServicoDialog({ servico, aoFechar, aoMudar }: Props) {
   const [problemas, setProblemas] = useState<ProblemasDoServico>({});
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const caixa = useRef<HTMLDivElement>(null);
 
   const alterar = (mudanca: Partial<NovoServico>) => {
     setFormulario((atual) => ({ ...atual, ...mudanca }));
@@ -33,6 +34,7 @@ export function EditarServicoDialog({ servico, aoFechar, aoMudar }: Props) {
     if (ocupado) return;
     const encontrados = validarEdicaoDeServico(formulario, hojeIso());
     setProblemas(encontrados);
+    setErroGeral(null); // erro da tentativa anterior não fica pendurado junto com os novos
     if (temProblemas(encontrados)) return;
     setOcupado(true);
     try {
@@ -63,13 +65,47 @@ export function EditarServicoDialog({ servico, aoFechar, aoMudar }: Props) {
     }
   };
 
+  /** Tab circula dentro do diálogo: sem isto o foco escapava para a tabela atrás. */
+  const prenderFoco = (evento: KeyboardEvent<HTMLDivElement>) => {
+    if (evento.key !== "Tab" || caixa.current === null) return;
+    const focaveis = caixa.current.querySelectorAll<HTMLElement>(
+      "input:not([disabled]), button:not([disabled])",
+    );
+    if (focaveis.length === 0) return;
+    const primeiro = focaveis[0];
+    const ultimo = focaveis[focaveis.length - 1];
+    if (evento.shiftKey && document.activeElement === primeiro) {
+      evento.preventDefault();
+      ultimo.focus();
+    } else if (!evento.shiftKey && document.activeElement === ultimo) {
+      evento.preventDefault();
+      primeiro.focus();
+    }
+  };
+
   return (
-    <div className="fundo-modal" onClick={aoFechar}>
+    // O fecha-no-fundo escuta mouseDown e confere o alvo: com onClick, arrastar
+    // para selecionar texto e soltar fora fechava o diálogo e perdia a edição.
+    <div
+      className="fundo-modal"
+      onMouseDown={(evento) => {
+        if (evento.target === evento.currentTarget) aoFechar();
+      }}
+    >
       <div
+        ref={caixa}
         className="modal"
         role="dialog"
+        aria-modal="true"
         aria-label={`Editar serviço ${servico.id}`}
-        onClick={(evento) => evento.stopPropagation()}
+        onKeyDown={(evento) => {
+          if (evento.key === "Escape") {
+            evento.stopPropagation();
+            aoFechar();
+            return;
+          }
+          prenderFoco(evento);
+        }}
       >
         <h3>Editar serviço nº {servico.id.toLocaleString("pt-BR")}</h3>
         {erroGeral !== null && <p className="mensagem-erro">{erroGeral}</p>}

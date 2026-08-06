@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -142,11 +142,55 @@ describe("edição pela linha", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await usuario.click(await screen.findByText("HB20"));
-    fireEvent.click(container.querySelector(".fundo-modal") as HTMLElement);
+    fireEvent.mouseDown(container.querySelector(".fundo-modal") as HTMLElement);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     const [intocado] = await ambiente.repositorio.historico("BBB2222");
     expect(intocado.produto).toBe("3 HX8");
+  });
+
+  // Selecionar texto no campo arrastando e soltar fora do diálogo emitia um click
+  // no fundo — o diálogo fechava e a edição inteira era perdida.
+  it("arrastar a seleção para fora do diálogo não fecha nem perde a edição", async () => {
+    const usuario = userEvent.setup();
+    const { container } = renderizar();
+    await usuario.click(await screen.findByText("HB20"));
+
+    const campoProduto = screen.getAllByDisplayValue("3 HX8")[0];
+    await usuario.clear(campoProduto);
+    await usuario.type(campoProduto, "EDICAO EM ANDAMENTO");
+
+    // o mouseDown nasce dentro do campo; só o click chega ao fundo
+    fireEvent.mouseDown(campoProduto);
+    fireEvent.click(container.querySelector(".fundo-modal") as HTMLElement);
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("EDICAO EM ANDAMENTO")).toBeInTheDocument();
+  });
+
+  it("Escape fecha o diálogo sem alterar o registro", async () => {
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.click(await screen.findByText("HB20"));
+
+    const campoProduto = screen.getAllByDisplayValue("3 HX8")[0];
+    await usuario.clear(campoProduto);
+    await usuario.type(campoProduto, "NAO DEVE SALVAR");
+    await usuario.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const [intocado] = await ambiente.repositorio.historico("BBB2222");
+    expect(intocado.produto).toBe("3 HX8");
+  });
+
+  it("dá para chegar à edição pelo teclado, sem mouse", async () => {
+    const usuario = userEvent.setup();
+    renderizar();
+    await screen.findByText("HB20");
+
+    await usuario.click(screen.getByLabelText("Editar serviço nº 3"));
+
+    expect(await screen.findByRole("dialog")).toHaveAttribute("aria-modal", "true");
   });
 
   it("excluir desistindo na confirmação não remove nada", async () => {
@@ -159,6 +203,55 @@ describe("edição pela linha", () => {
     await waitFor(() => expect(ask).toHaveBeenCalled());
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(await ambiente.repositorio.contarServicos()).toBe(3);
+  });
+
+  // Se o diálogo fechasse ao falhar, a correção seria dada como feita e perdida.
+  it("falha ao salvar mantém o diálogo aberto, mostra o erro e não altera o banco", async () => {
+    vi.spyOn(ambiente.repositorio, "atualizar").mockRejectedValue(new Error("banco travado"));
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.click(await screen.findByText("HB20"));
+
+    const campoProduto = screen.getAllByDisplayValue("3 HX8")[0];
+    await usuario.clear(campoProduto);
+    await usuario.type(campoProduto, "5 HX8 NOVO");
+    await usuario.click(screen.getByRole("button", { name: /salvar alterações/i }));
+
+    expect(await screen.findByText(/não foi possível salvar.*banco travado/i)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("5 HX8 NOVO")).toBeInTheDocument(); // digitação preservada
+    const [intocado] = await ambiente.repositorio.historico("BBB2222");
+    expect(intocado.produto).toBe("3 HX8");
+  });
+
+  it("falha ao excluir mantém o diálogo aberto, mostra o erro e não remove nada", async () => {
+    vi.spyOn(ambiente.repositorio, "excluir").mockRejectedValue(new Error("banco travado"));
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.click(await screen.findByText("HB20"));
+    await usuario.click(await screen.findByRole("button", { name: /excluir/i }));
+
+    expect(await screen.findByText(/não foi possível excluir.*banco travado/i)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(await ambiente.repositorio.contarServicos()).toBe(3);
+  });
+
+  it("corrigir só o km de um registro legado sem data salva sem exigir data", async () => {
+    await ambiente.repositorio.substituirTodosPor([
+      servicoImportado({ id: 9, placa: "LEG0001", carro: "OPALA", data: null, kmRaw: "" }),
+    ]);
+    const usuario = userEvent.setup();
+    renderizar();
+    await usuario.click(await screen.findByText("OPALA"));
+
+    const dialogo = await screen.findByRole("dialog");
+    await usuario.type(within(dialogo).getByLabelText("Km"), "88000");
+    await usuario.click(screen.getByRole("button", { name: /salvar alterações/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const [legado] = await ambiente.repositorio.historico("LEG0001");
+    expect(legado.km).toBe(88000);
+    expect(legado.data).toBeNull(); // continua sem data, como o Access entregou
   });
 
   it("excluir com confirmação remove o registro da lista e do banco", async () => {

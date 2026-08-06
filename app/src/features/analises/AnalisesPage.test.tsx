@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProvedorDeDadosParaTeste } from "../../data/ProvedorDeDados";
@@ -43,7 +43,7 @@ afterEach(() => ambiente.banco.fechar());
 
 describe("carregamento sob demanda", () => {
   it("não roda nenhuma consulta enquanto a aba não está ativa", async () => {
-    const contarBase = vi.spyOn(ambiente.dados.analises, "contarBase");
+    const contarBase = vi.spyOn(ambiente.dados.qualidade, "contarBase");
     const { rerender } = renderizarComDados(
       <AnalisesPage ativa={false} aoVerHistorico={vi.fn()} />,
       ambiente.dados,
@@ -62,7 +62,7 @@ describe("carregamento sob demanda", () => {
 describe("quando o cálculo falha", () => {
   it("mostra o erro e o botão Tentar novamente recarrega", async () => {
     const usuario = userEvent.setup();
-    vi.spyOn(ambiente.dados.analises, "contarBase").mockRejectedValueOnce(new Error("falhou"));
+    vi.spyOn(ambiente.dados.qualidade, "contarBase").mockRejectedValueOnce(new Error("falhou"));
     const erroDeConsole = vi.spyOn(console, "error").mockImplementation(() => {});
     renderizarComDados(<AnalisesPage ativa aoVerHistorico={vi.fn()} />, ambiente.dados);
 
@@ -145,6 +145,31 @@ describe("qualidade dos dados", () => {
 
     expect(await screen.findByText("Sem data (0)")).toBeInTheDocument();
     expect(await screen.findByText(/nenhum serviço encontrado/i)).toBeInTheDocument();
+  });
+
+  // Antes, o catch só chamava console.error e o estado continuava "não carregado":
+  // o acordeão ficava girando "Carregando registros…" para sempre, sem saída.
+  it("falha ao listar mostra erro com Tentar novamente, e não gira para sempre", async () => {
+    const erroDeConsole = vi.spyOn(console, "error").mockImplementation(() => {});
+    const listar = vi
+      .spyOn(ambiente.dados.qualidade, "listarInconsistencia")
+      .mockRejectedValueOnce(new Error("banco travado"));
+    const usuario = userEvent.setup();
+    renderizarComDados(<AnalisesPage ativa aoVerHistorico={vi.fn()} />, ambiente.dados);
+
+    const resumo = await screen.findByText("Sem data (1)");
+    await usuario.click(resumo);
+    const acordeao = within(resumo.closest("details") as HTMLElement);
+
+    expect(
+      await acordeao.findByText(/não foi possível carregar estes registros/i),
+    ).toBeInTheDocument();
+    expect(acordeao.queryByText(/carregando registros/i)).not.toBeInTheDocument();
+
+    listar.mockRestore();
+    await usuario.click(acordeao.getByRole("button", { name: /tentar novamente/i }));
+    expect(await screen.findByText("FUSCA 1300")).toBeInTheDocument();
+    erroDeConsole.mockRestore();
   });
 
   it("lista placas com carros diferentes e leva ao histórico", async () => {

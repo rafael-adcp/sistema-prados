@@ -89,11 +89,15 @@ export function converterCsvDoAccess(texto: string, hoje: string): ResultadoDaCo
     const suspeita = dataEhSuspeita(data, hoje);
     resultado.servicos.push({
       id: Number(codigo),
-      carro: carro.trim(),
+      // Maiúsculas iguais às da escrita do dia a dia (servicoRepository): sem
+      // isto a base ficava com duas convenções, e o GROUP BY binário do SQLite
+      // separava "Óleo 20W50" de "ÓLEO 20W50" no relatório de produtos e
+      // acusava "mesma placa com carros diferentes" só por causa da caixa.
+      carro: carro.trim().toUpperCase(),
       km: normalizarKm(kmRaw),
       kmRaw: kmRaw.trim(),
       placa,
-      produto: produto.trim(),
+      produto: produto.trim().toUpperCase(),
       data,
       dataSuspeita: suspeita,
     });

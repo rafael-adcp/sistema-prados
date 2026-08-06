@@ -29,8 +29,9 @@ interface Props {
 
 const formatarPadrao = (valor: number) => Math.round(valor).toLocaleString("pt-BR");
 
-/** Paleta validada para daltonismo (scripts/validate_palette.js do skill de dataviz). */
-const PALETA = ["#0b6bcb", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
+// Cores: as do próprio billboard (schemeCategory10, 10 tons). Nenhum gráfico do
+// app passa de 10 séries — o mensal é capado em 10 anos —, então a paleta nunca
+// cicla. Não configuramos `color.pattern`: é a lib quem decide.
 
 /**
  * Wrapper fino do billboard.js: o resto do app só conhece esta interface.
@@ -49,7 +50,6 @@ export function Grafico({ titulo, tipo, rotulosX, series, referencias, formatarV
         columns: series.map((serie) => [serie.nome, ...serie.pontos]),
         type: tipo === "barra" ? bar() : line(),
       },
-      color: { pattern: PALETA },
       line: { connectNull: false },
       axis: {
         x: {
@@ -71,7 +71,8 @@ export function Grafico({ titulo, tipo, rotulosX, series, referencias, formatarV
       // order desc: no tooltip, a série de maior valor vem primeiro (útil no
       // gráfico mensal multi-anos, onde as linhas se cruzam).
       tooltip: { order: "desc", format: { value: (valor: number) => formatar(valor) } },
-      point: { show: rotulosX.length <= 31 },
+      // Com muitas séries os marcadores viram poeira sobre as linhas.
+      point: { show: rotulosX.length <= 31 && series.length <= 6 },
     });
     return () => {
       grafico.destroy();

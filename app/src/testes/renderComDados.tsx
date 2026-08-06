@@ -4,6 +4,7 @@ import { AnaliseRepository } from "../data/analiseRepository";
 import type { BackupService } from "../data/backupService";
 import type { ImportacaoService } from "../data/importacaoService";
 import { ProvedorDeDadosParaTeste, type Dados } from "../data/ProvedorDeDados";
+import { QualidadeRepository } from "../data/qualidadeRepository";
 import { ServicoRepository } from "../data/servicoRepository";
 import type { ServicoImportado } from "../domain/importarAccess";
 import { criarBancoDeTeste, type BancoDeTeste } from "./bancoDeTeste";
@@ -31,6 +32,7 @@ export function criarAmbienteDeTeste(): AmbienteDeTeste {
     backup: backupInerte(),
     importacao: { importarDoAccess: async () => ({ servicos: [], semData: 0, semPlaca: 0, datasSuspeitas: 0 }) } as unknown as ImportacaoService,
     analises: new AnaliseRepository(banco),
+    qualidade: new QualidadeRepository(banco),
   };
   return { banco, repositorio, dados };
 }

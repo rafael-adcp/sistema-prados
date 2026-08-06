@@ -47,7 +47,7 @@ describe("navegação sem perder estado", () => {
 
   it("a aba Análises só calcula quando aberta e mostra as seções", async () => {
     const usuario = userEvent.setup();
-    const contarBase = vi.spyOn(ambiente.dados.analises, "contarBase");
+    const contarBase = vi.spyOn(ambiente.dados.qualidade, "contarBase");
     renderizarComDados(<App />, ambiente.dados);
     expect(contarBase).not.toHaveBeenCalled();
 

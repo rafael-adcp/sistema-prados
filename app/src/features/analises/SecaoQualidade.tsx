@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { useQualidade } from "../../data/ProvedorDeDados";
 import type {
   ContagensDeInconsistencias,
   InconsistenciaListavel,
   PlacaComVariacoes,
-} from "../../data/analiseRepository";
-import { useAnalises } from "../../data/ProvedorDeDados";
+} from "../../data/qualidadeRepository";
 import type { Servico } from "../../domain/servico";
 import { Carregando } from "../../ui/Carregando";
 import { TabelaServicos } from "../../ui/TabelaServicos";
@@ -32,34 +32,57 @@ interface Props {
   aoMudar: () => void;
 }
 
+/** "carregando" era representado por `undefined`, o mesmo valor de "deu erro" —
+ *  por isso uma falha prendia o acordeão em "Carregando registros…" para sempre. */
+const ERRO = "erro" as const;
+type Lista<T> = T[] | typeof ERRO | undefined;
+
 export function SecaoQualidade({ contagens, aoVerHistorico, aoMudar }: Props) {
-  const analises = useAnalises();
-  const [listas, setListas] = useState<Partial<Record<InconsistenciaListavel, Servico[]>>>({});
-  const [placasDiferentes, setPlacasDiferentes] = useState<PlacaComVariacoes[] | null>(null);
+  const qualidade = useQualidade();
+  const [listas, setListas] = useState<Partial<Record<InconsistenciaListavel, Lista<Servico>>>>({});
+  const [placasDiferentes, setPlacasDiferentes] = useState<Lista<PlacaComVariacoes>>(undefined);
   const [emEdicao, setEmEdicao] = useState<Servico | null>(null);
 
   const carregarLista = (tipo: InconsistenciaListavel) => {
-    analises
+    setListas((atuais) => ({ ...atuais, [tipo]: undefined }));
+    qualidade
       .listarInconsistencia(tipo, LIMITE_DA_LISTA)
       .then((lista) => setListas((atuais) => ({ ...atuais, [tipo]: lista })))
-      .catch((causa) => console.error("Lista de inconsistências falhou:", causa));
+      .catch((causa) => {
+        console.error("Lista de inconsistências falhou:", causa);
+        setListas((atuais) => ({ ...atuais, [tipo]: ERRO }));
+      });
   };
 
   const carregarPlacasDiferentes = () => {
-    analises
+    setPlacasDiferentes(undefined);
+    qualidade
       .listarPlacasComCarrosDiferentes(LIMITE_DA_LISTA)
       .then(setPlacasDiferentes)
-      .catch((causa) => console.error("Placas com carros diferentes falhou:", causa));
+      .catch((causa) => {
+        console.error("Placas com carros diferentes falhou:", causa);
+        setPlacasDiferentes(ERRO);
+      });
   };
 
+  /** Erro visível com saída, no lugar do girador eterno. */
+  const avisoDeFalha = (tentarDeNovo: () => void) => (
+    <>
+      <p className="mensagem-erro">Não foi possível carregar estes registros.</p>
+      <button type="button" className="botao-secundario" onClick={tentarDeNovo}>
+        Tentar novamente
+      </button>
+    </>
+  );
+
   const aoAbrir = (tipo: InconsistenciaListavel, aberto: boolean) => {
-    if (aberto && listas[tipo] === undefined) carregarLista(tipo);
+    if (aberto && !(tipo in listas)) carregarLista(tipo);
   };
 
   /** Recarrega as listas já abertas e avisa o pai para refazer as contagens. */
   const aposCorrigir = () => {
     for (const tipo of Object.keys(listas) as InconsistenciaListavel[]) carregarLista(tipo);
-    if (placasDiferentes !== null) carregarPlacasDiferentes();
+    if (placasDiferentes !== undefined) carregarPlacasDiferentes();
     aoMudar();
   };
 
@@ -83,6 +106,8 @@ export function SecaoQualidade({ contagens, aoVerHistorico, aoMudar }: Props) {
             <div className="corpo-acordeao">
               {lista === undefined ? (
                 <Carregando mensagem="Carregando registros…" />
+              ) : lista === ERRO ? (
+                avisoDeFalha(() => carregarLista(tipo))
               ) : (
                 <>
                   {contagem > LIMITE_DA_LISTA && (
@@ -105,13 +130,17 @@ export function SecaoQualidade({ contagens, aoVerHistorico, aoMudar }: Props) {
       <details
         className="acordeao"
         onToggle={(evento) => {
-          if (evento.currentTarget.open && placasDiferentes === null) carregarPlacasDiferentes();
+          if (evento.currentTarget.open && placasDiferentes === undefined) {
+            carregarPlacasDiferentes();
+          }
         }}
       >
         <summary>{`Mesma placa com carros diferentes (${contagens.mesmaPlacaCarrosDiferentes.toLocaleString("pt-BR")})`}</summary>
         <div className="corpo-acordeao">
-          {placasDiferentes === null ? (
+          {placasDiferentes === undefined ? (
             <Carregando mensagem="Carregando registros…" />
+          ) : placasDiferentes === ERRO ? (
+            avisoDeFalha(carregarPlacasDiferentes)
           ) : placasDiferentes.length === 0 ? (
             <p className="estado-vazio">Nenhuma placa com descrições diferentes.</p>
           ) : (

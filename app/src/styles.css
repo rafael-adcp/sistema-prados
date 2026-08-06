@@ -107,6 +107,14 @@ select:focus {
   border-color: var(--azul);
 }
 
+/* O anel padrão do WebView2 some sobre o azul do botão principal — quem navega
+   por teclado ficava sem saber onde está. */
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--azul-escuro);
+  outline-offset: 2px;
+}
+
 .campo-busca {
   width: 100%;
   font-size: 21px;
@@ -249,7 +257,8 @@ select:focus {
   font-family: inherit;
 }
 
-.sugestoes button:hover {
+.sugestoes button:hover,
+.sugestoes button.sugestao-destacada {
   background: var(--ciano-heranca);
 }
 
@@ -342,6 +351,28 @@ select:focus {
   letter-spacing: 1px;
 }
 
+/* Coluna "Editar": o caminho de teclado para o diálogo (a linha inteira continua
+   clicável no mouse). Discreto para não competir com os dados. */
+.col-editar {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.link-editar {
+  border: none;
+  background: none;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--azul);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.linhas-clicaveis tbody tr:focus-within {
+  background: var(--ciano-heranca);
+}
+
 .badge-suspeita {
   display: inline-block;
   margin-left: 6px;
@@ -412,10 +443,6 @@ select:focus {
   color: inherit;
   padding: 0;
   line-height: 1;
-}
-
-.entrada-maiuscula {
-  text-transform: uppercase;
 }
 
 /* ---------- Validação no próprio campo ---------- */
@@ -492,15 +519,6 @@ select:focus {
 
 .botao-perigo:hover:not(:disabled) {
   background: #fdecea;
-}
-
-.lista-problemas {
-  background: #fdecea;
-  border: 1px solid var(--vermelho);
-  color: var(--vermelho);
-  padding: 10px 16px 10px 32px;
-  border-radius: 8px;
-  margin: 14px 0 0;
 }
 
 .aviso {

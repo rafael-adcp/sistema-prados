@@ -1,15 +1,23 @@
+import type { AnaliseRepository } from "../../data/analiseRepository";
 import type {
-  AnaliseRepository,
   BaseDeAnalise,
   ContagensDeInconsistencias,
-} from "../../data/analiseRepository";
+  QualidadeRepository,
+} from "../../data/qualidadeRepository";
 import {
   mesIsoDe,
   mesmoMesDoAnoAnterior,
   periodoDeUltimosAnos,
   type PeriodoDeAnos,
 } from "../../domain/analises";
-import type { NumerosDaOficina } from "./SecaoNumeros";
+import type { NumerosDaOficina } from "./numerosDaOficina";
+
+/**
+ * Janela do gráfico "Trocas por mês". Vive só aqui: a tela deriva os anos dos
+ * próprios dados que recebe, então o número não fica repetido em dois lugares
+ * (era assim antes, com o 5 escrito na consulta E na montagem das séries).
+ */
+export const ANOS_NO_GRAFICO_MENSAL = 10;
 
 export interface PainelDeAnalises {
   base: BaseDeAnalise;
@@ -38,16 +46,17 @@ async function aguardarNomeados<T extends Record<string, Promise<unknown>>>(
 /** Todas as consultas da aba Análises, em paralelo, prontas para a tela. */
 export async function carregarPainel(
   analises: AnaliseRepository,
+  qualidade: QualidadeRepository,
   hoje: string,
   anoEscolhido: string,
 ): Promise<PainelDeAnalises> {
   const periodo = paraPeriodo(anoEscolhido);
   const mesAtual = mesIsoDe(hoje);
   const { base, contagens, anosDoBanco, ...numeros } = await aguardarNomeados({
-    base: analises.contarBase(),
-    contagens: analises.contarInconsistencias(),
+    base: qualidade.contarBase(),
+    contagens: qualidade.contarInconsistencias(),
     anosDoBanco: analises.anosDisponiveis(),
-    trocasPorAnoEMes: analises.trocasPorAnoEMes(periodoDeUltimosAnos(hoje, 5)),
+    trocasPorAnoEMes: analises.trocasPorAnoEMes(periodoDeUltimosAnos(hoje, ANOS_NO_GRAFICO_MENSAL)),
     trocasPorAno: analises.trocasPorAno(), // por ano é multi-anos por definição: o filtro não se aplica
     placasDistintasPorAno: analises.placasDistintasPorAno(),
     faixasDeRetorno: analises.faixasDeRetorno(periodo),

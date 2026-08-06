@@ -45,9 +45,17 @@ export function paraServico(linha: LinhaServico): Servico {
   };
 }
 
-/** %/_ são curingas do LIKE; escapados, buscar "50%" acha só "50%". */
+/**
+ * %/_ são curingas do LIKE; escapados, buscar "50%" acha só "50%".
+ *
+ * O termo sobe para maiúsculas porque carro/produto/placa são gravados assim (na
+ * escrita do dia a dia e na importação). O LIKE do SQLite só ignora caixa em
+ * ASCII, então sem isto procurar "camarão" não achava "CAMARÃO" — e o campo de
+ * busca, ao contrário dos de cadastro, não força maiúscula visualmente.
+ */
 function padraoLike(termo: string): string {
-  return `%${termo.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const escapado = termo.trim().toUpperCase().replace(/[\\%_]/g, (c) => `\\${c}`);
+  return `%${escapado}%`;
 }
 
 interface FiltroSql {

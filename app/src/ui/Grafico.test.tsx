@@ -24,6 +24,34 @@ beforeEach(() => {
 });
 
 describe("Grafico", () => {
+  // As cores são as do billboard: nenhum gráfico passa de 10 séries (o mensal é
+  // capado em 10 anos), então a paleta padrão de 10 tons nunca cicla.
+  it("não configura paleta — deixa a lib decidir as cores", () => {
+    render(
+      <Grafico
+        titulo="Trocas por mês"
+        tipo="linha"
+        rotulosX={["jan", "fev"]}
+        series={[
+          { nome: "2025", pontos: [1, 2] },
+          { nome: "2026", pontos: [3, 4] },
+        ]}
+      />,
+    );
+    expect(opcoesDaUltimaGeracao().color).toBeUndefined();
+  });
+
+  it("esconde os marcadores quando há séries demais (viram poeira sobre as linhas)", () => {
+    const muitas = Array.from({ length: 10 }, (_, i) => ({
+      nome: String(2017 + i),
+      pontos: [1, 2],
+    }));
+    render(
+      <Grafico titulo="Trocas por mês" tipo="linha" rotulosX={["jan", "fev"]} series={muitas} />,
+    );
+    expect(opcoesDaUltimaGeracao().point.show).toBe(false);
+  });
+
   it("registra o módulo grid do billboard ao carregar (sem ele, tooltip e linhas de referência morrem)", () => {
     expect(grid).toHaveBeenCalled();
   });

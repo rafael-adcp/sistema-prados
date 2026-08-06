@@ -117,6 +117,23 @@ describe("buscar", () => {
     expect((await repositorio.buscar({ tipo: "texto", termo: "6914" }, 0, 50)).total).toBe(2);
   });
 
+  // O LIKE do SQLite só ignora caixa em ASCII: sem subir o termo para maiúsculas,
+  // "camarão" não achava "CAMARÃO" e o balconista concluía que o serviço sumiu.
+  it("acha texto acentuado digitado em minúsculas", async () => {
+    // gravado pelo caminho normal do balcão, que já sobe tudo para maiúsculas
+    await repositorio.inserir({
+      placa: "CAM0001",
+      carro: "Golf 2.0 8V",
+      kmRaw: "120000",
+      produto: "5 ELAION SEMI obs tr Camarão",
+      data: "2025-11-03",
+    });
+
+    expect((await repositorio.buscar({ tipo: "texto", termo: "camarão" }, 0, 50)).total).toBe(1);
+    expect((await repositorio.buscar({ tipo: "texto", termo: "golf" }, 0, 50)).total).toBe(1);
+    expect((await repositorio.buscar({ tipo: "carro", termo: "golf 2.0" }, 0, 50)).total).toBe(1);
+  });
+
   it("escapa os curingas do LIKE: buscar 50% acha só o aditivo", async () => {
     expect((await repositorio.buscar({ tipo: "texto", termo: "50%" }, 0, 50)).total).toBe(1);
     expect((await repositorio.buscar({ tipo: "texto", termo: "_" }, 0, 50)).total).toBe(0);

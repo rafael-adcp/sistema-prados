@@ -73,7 +73,7 @@ describe("fazerBackupAutomaticoSePrecisar", () => {
     expect(comandosSql.some((sql) => sql.startsWith("VACUUM"))).toBe(false);
   });
 
-  it("faz backup quando o último tem mais de 7 dias, e pula quando é recente", async () => {
+  it("faz o backup do dia e não repete na segunda abertura do mesmo dia", async () => {
     await config.gravar(CONFIG_PASTA_BACKUP, "D:\\backups");
     await config.gravar(CONFIG_ULTIMO_BACKUP, "2020-01-01");
     const backup = new BackupService(portaEspiona, config);

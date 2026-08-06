@@ -22,6 +22,9 @@ const DURACAO_DO_AVISO_MS = 6000;
 interface UltimaTroca {
   servico: Servico;
   totalDeVisitas: number;
+  /** A placa a que este cartão pertence — sem isto ele mostra os dados da placa anterior
+   *  enquanto a consulta da placa nova ainda não voltou. */
+  placa: string;
 }
 
 export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: string) => void }) {
@@ -32,8 +35,13 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [idSalvo, setIdSalvo] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
+  /** Enquanto a pessoa não escolher uma data, o campo segue o dia de hoje. */
+  const [dataEscolhidaAMao, setDataEscolhidaAMao] = useState(false);
   const placaRef = useRef<HTMLInputElement>(null);
   const kmRef = useRef<HTMLInputElement>(null);
+  /** Último carro que o autopreenchimento escreveu. Só ele pode ser substituído por
+   *  outro autopreenchimento — o que a pessoa digitou é intocável. */
+  const carroAutoPreenchido = useRef<string | null>(null);
 
   const alterar = (mudanca: Partial<NovoServico>) => {
     setFormulario((atual) => ({ ...atual, ...mudanca }));
@@ -44,6 +52,25 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
     const temporizador = setTimeout(() => setIdSalvo(null), DURACAO_DO_AVISO_MS);
     return () => clearTimeout(temporizador);
   }, [idSalvo]);
+
+  /**
+   * A loja deixa o app aberto direto. Sem isto, o formulário guardava o `hojeIso()`
+   * da última vez que foi semeado e o primeiro serviço de cada manhã era gravado
+   * com a data de ontem — errado, plausível e portanto invisível.
+   */
+  useEffect(() => {
+    if (dataEscolhidaAMao) return;
+    const sincronizar = () => {
+      const hoje = hojeIso();
+      setFormulario((atual) => (atual.data === hoje ? atual : { ...atual, data: hoje }));
+    };
+    window.addEventListener("focus", sincronizar);
+    document.addEventListener("visibilitychange", sincronizar);
+    return () => {
+      window.removeEventListener("focus", sincronizar);
+      document.removeEventListener("visibilitychange", sincronizar);
+    };
+  }, [dataEscolhidaAMao]);
 
   const placaNormalizada = normalizarPlaca(formulario.placa);
 
@@ -59,11 +86,17 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
     ])
       .then(([servico, totalDeVisitas]) => {
         if (cancelada) return;
-        setUltima(servico === null ? null : { servico, totalDeVisitas });
+        setUltima(
+          servico === null ? null : { servico, totalDeVisitas, placa: placaNormalizada },
+        );
         if (servico !== null && servico.carro !== "") {
+          const substituivel = carroAutoPreenchido.current;
           setFormulario((atual) =>
-            atual.carro === "" ? { ...atual, carro: servico.carro } : atual,
+            atual.carro === "" || atual.carro === substituivel
+              ? { ...atual, carro: servico.carro }
+              : atual,
           );
+          carroAutoPreenchido.current = servico.carro;
         }
       })
       .catch((causa) => console.error("Última troca falhou:", causa));
@@ -74,6 +107,7 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
 
   const escolherSugestao = (sugestao: SugestaoDePlaca) => {
     alterar({ placa: sugestao.placa, carro: sugestao.carro });
+    carroAutoPreenchido.current = sugestao.carro;
     kmRef.current?.focus();
   };
 
@@ -90,6 +124,8 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
     setErroGeral(null);
     setIdSalvo(null);
     setUltima(null);
+    carroAutoPreenchido.current = null;
+    setDataEscolhidaAMao(false);
     placaRef.current?.focus();
   };
 
@@ -97,7 +133,10 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
     if (salvando) return;
     // clique/Enter repetido logo após salvar: o formulário já está limpo — ignora
     if (idSalvo !== null && formularioIntocado) return;
-    const encontrados = validarNovoServico(formulario, hojeIso());
+    const hoje = hojeIso();
+    // Backstop do app que passou a virada do dia aberto: data não escolhida à mão é hoje.
+    const aSalvar = dataEscolhidaAMao ? formulario : { ...formulario, data: hoje };
+    const encontrados = validarNovoServico(aSalvar, hoje);
     setProblemas(encontrados);
     setErroGeral(null);
     if (temProblemas(encontrados)) {
@@ -106,9 +145,11 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
     }
     setSalvando(true);
     try {
-      const id = await repositorio.inserir(formulario);
+      const id = await repositorio.inserir(aSalvar);
       setIdSalvo(id);
       setUltima(null);
+      carroAutoPreenchido.current = null;
+      setDataEscolhidaAMao(false);
       setFormulario(novoServicoVazio(hojeIso()));
       placaRef.current?.focus();
     } catch (causa) {
@@ -183,11 +224,14 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
                 value={formulario.data}
                 min="2000-01-01"
                 max={hojeIso()}
-                onChange={(evento) => alterar({ data: evento.target.value })}
+                onChange={(evento) => {
+                  setDataEscolhidaAMao(true);
+                  alterar({ data: evento.target.value });
+                }}
               />
             </CampoComErro>
           </div>
-          {ultima !== null && (
+          {ultima !== null && ultima.placa === placaNormalizada && (
             <CartaoUltimaTroca
               servico={ultima.servico}
               totalDeVisitas={ultima.totalDeVisitas}

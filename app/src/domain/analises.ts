@@ -124,15 +124,10 @@ export interface PeriodoDeAnos {
   ateAno: string;
 }
 
+/** Janela de anos terminando no ano corrente — ex.: (2026, 10) → 2017…2026. */
 export function periodoDeUltimosAnos(hoje: string, quantidade: number): PeriodoDeAnos {
   const anoAtual = Number(hoje.slice(0, 4));
   return { deAno: String(anoAtual - quantidade + 1), ateAno: String(anoAtual) };
-}
-
-/** Os últimos `quantidade` anos até hoje, em ordem crescente ("2022"…"2026"). */
-export function ultimosAnos(hoje: string, quantidade: number): string[] {
-  const anoAtual = Number(hoje.slice(0, 4));
-  return Array.from({ length: quantidade }, (_, i) => String(anoAtual - quantidade + 1 + i));
 }
 
 export function mesIsoDe(dataIso: string): string {

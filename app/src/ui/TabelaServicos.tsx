@@ -23,6 +23,7 @@ export function TabelaServicos({ itens, aoClicarNaPlaca, aoClicarNaLinha }: Prop
           <th>Carro</th>
           <th>Km</th>
           <th>Produto / Serviço</th>
+          {clicavel && <th className="no-print">Editar</th>}
         </tr>
       </thead>
       <tbody>
@@ -60,6 +61,23 @@ export function TabelaServicos({ itens, aoClicarNaPlaca, aoClicarNaLinha }: Prop
             <td>{servico.carro || "—"}</td>
             <td className="col-km">{formatarKm(servico.km, servico.kmRaw) || "—"}</td>
             <td>{servico.produto || "—"}</td>
+            {/* O clique na linha continua sendo o atalho de mouse; este botão é o
+                único caminho que existe pelo teclado (e o que o leitor de tela lê). */}
+            {clicavel && (
+              <td className="col-editar no-print">
+                <button
+                  type="button"
+                  className="link-editar"
+                  aria-label={`Editar serviço nº ${servico.id}`}
+                  onClick={(evento) => {
+                    evento.stopPropagation();
+                    aoClicarNaLinha(servico);
+                  }}
+                >
+                  Editar
+                </button>
+              </td>
+            )}
           </tr>
         ))}
       </tbody>

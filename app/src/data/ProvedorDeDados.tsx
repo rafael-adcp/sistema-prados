@@ -3,8 +3,10 @@ import { Carregando } from "../ui/Carregando";
 import { AnaliseRepository } from "./analiseRepository";
 import { BackupService } from "./backupService";
 import { ConfigRepository } from "./configRepository";
+import { copiarBancoPara } from "./copiaDeSeguranca";
 import { obterBanco } from "./database";
 import { ImportacaoService } from "./importacaoService";
+import { QualidadeRepository } from "./qualidadeRepository";
 import { ServicoRepository } from "./servicoRepository";
 
 export interface Dados {
@@ -12,6 +14,7 @@ export interface Dados {
   backup: BackupService;
   importacao: ImportacaoService;
   analises: AnaliseRepository;
+  qualidade: QualidadeRepository;
 }
 
 const ContextoDeDados = createContext<Dados | null>(null);
@@ -39,8 +42,12 @@ export function ProvedorDeDados({ children }: { children: ReactNode }) {
         setDados({
           repositorio,
           backup: new BackupService(db, new ConfigRepository(db)),
-          importacao: new ImportacaoService(repositorio),
+          importacao: new ImportacaoService(
+            repositorio,
+            copiarBancoPara(db, "prados-antes-da-migracao"),
+          ),
           analises: new AnaliseRepository(db),
+          qualidade: new QualidadeRepository(db),
         });
       })
       .catch((causa) => setErro(String(causa)));
@@ -78,4 +85,8 @@ export function useImportacao(): ImportacaoService {
 
 export function useAnalises(): AnaliseRepository {
   return useDados().analises;
+}
+
+export function useQualidade(): QualidadeRepository {
+  return useDados().qualidade;
 }

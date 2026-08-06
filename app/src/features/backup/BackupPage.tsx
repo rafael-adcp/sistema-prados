@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useBackup, useRepositorio } from "../../data/ProvedorDeDados";
 import { recarregarApp } from "../../data/recarregarApp";
 import { formatarDataBr } from "../../domain/datas";
+import { Carregando } from "../../ui/Carregando";
 import { MigracaoAccess } from "./MigracaoAccess";
 
 interface Situacao {
@@ -16,10 +17,17 @@ interface Mensagem {
   tipo: "sucesso" | "erro";
 }
 
+/**
+ * Um pouco mais longo que o aviso do Novo Serviço (6 s): aqui a mensagem traz o
+ * caminho completo do arquivo, que a pessoa costuma querer ler até o fim.
+ */
+const DURACAO_DO_AVISO_MS = 9000;
+
 export function BackupPage({ ativa }: { ativa: boolean }) {
   const repositorio = useRepositorio();
   const backup = useBackup();
   const [situacao, setSituacao] = useState<Situacao | null>(null);
+  const [erroDaSituacao, setErroDaSituacao] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -30,11 +38,25 @@ export function BackupPage({ ativa }: { ativa: boolean }) {
       backup.ultimoBackupEm(),
     ]);
     setSituacao({ totalDeServicos, pastaDeBackup, ultimoBackupEm });
+    setErroDaSituacao(null);
   };
+
+  /**
+   * Só o aviso de sucesso some sozinho. Erro fica até a pessoa fechar no ✕ —
+   * "backup falhou" sumindo sozinho é exatamente o que não pode acontecer.
+   */
+  useEffect(() => {
+    if (mensagem === null || mensagem.tipo === "erro") return;
+    const temporizador = setTimeout(() => setMensagem(null), DURACAO_DO_AVISO_MS);
+    return () => clearTimeout(temporizador);
+  }, [mensagem]);
 
   useEffect(() => {
     if (!ativa) return;
-    recarregar().catch((causa) => console.error("Situação do backup falhou:", causa));
+    recarregar().catch((causa) => {
+      console.error("Situação do backup falhou:", causa);
+      setErroDaSituacao(String(causa));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ativa]);
 
@@ -65,14 +87,30 @@ export function BackupPage({ ativa }: { ativa: boolean }) {
   };
 
   const importarBanco = async () => {
+    if (situacao === null) return; // botão só existe com a situação carregada
     const arquivo = await open({
       title: "Escolha o arquivo prados.db exportado da migração",
       filters: [{ name: "Banco SQLite", extensions: ["db"] }],
     });
     if (typeof arquivo !== "string") return;
+
+    // Conferir ANTES de perguntar: se o arquivo não for um banco do Prados, o
+    // erro aparece sem nada ter sido tocado — e a pergunta mostra os dois números,
+    // que é o que deixa óbvio quando o arquivo escolhido é o errado.
+    let servicosNoArquivo: number;
+    try {
+      servicosNoArquivo = await backup.inspecionarBanco(arquivo);
+    } catch (causa) {
+      setMensagem({ texto: `Arquivo recusado: ${causa}`, tipo: "erro" });
+      return;
+    }
+
     const confirmado = await ask(
-      "Isto SUBSTITUI todos os dados atuais pelo arquivo escolhido.\nO banco atual fica guardado na pasta de dados como cópia de segurança.\nContinuar?",
-      { title: "Importar banco de dados", kind: "warning" },
+      `O arquivo escolhido tem ${servicosNoArquivo.toLocaleString("pt-BR")} serviços.\n` +
+        `O sistema tem ${situacao.totalDeServicos.toLocaleString("pt-BR")} agora.\n\n` +
+        "Isto SUBSTITUI todos os dados atuais pelo arquivo escolhido.\n" +
+        "O banco atual fica guardado na pasta de dados como cópia de segurança.\nContinuar?",
+      { title: "Restaurar banco de dados", kind: "warning" },
     );
     if (!confirmado) return;
     setOcupado(true);
@@ -85,14 +123,46 @@ export function BackupPage({ ativa }: { ativa: boolean }) {
     }
   };
 
-  if (situacao === null) return null;
+  // Sem isto a aba ficava em branco para sempre — e com ela sumiam o backup e a
+  // migração, que são justamente o que se procura quando algo deu errado.
+  if (situacao === null) {
+    return (
+      <section className="backup">
+        <h2>Backup e dados</h2>
+        {erroDaSituacao === null ? (
+          <Carregando mensagem="Lendo a situação do backup…" />
+        ) : (
+          <>
+            <p className="mensagem-erro">
+              Não foi possível ler a situação do backup: {erroDaSituacao}
+            </p>
+            <button
+              type="button"
+              className="botao-secundario"
+              onClick={() =>
+                void recarregar().catch((causa) => setErroDaSituacao(String(causa)))
+              }
+            >
+              Tentar novamente
+            </button>
+          </>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="backup">
       <h2>Backup e dados</h2>
       {mensagem !== null && (
-        <p className={mensagem.tipo === "sucesso" ? "mensagem-sucesso" : "mensagem-erro"}>
-          {mensagem.texto}
+        <p
+          className={`${mensagem.tipo === "sucesso" ? "mensagem-sucesso" : "mensagem-erro"} mensagem-fechavel`}
+          role="status"
+        >
+          <span>{mensagem.texto}</span>
+          <button type="button" aria-label="Fechar aviso" onClick={() => setMensagem(null)}>
+            ✕
+          </button>
         </p>
       )}
 
@@ -106,7 +176,8 @@ export function BackupPage({ ativa }: { ativa: boolean }) {
       </dl>
 
       <p className="texto-apoio">
-        Com a pasta configurada, o sistema faz um backup sozinho a cada 7 dias ao abrir. Use uma
+        Com a pasta configurada, o sistema faz um backup sozinho uma vez por dia, ao abrir, e
+        guarda os 10 últimos (os 10 últimos dias de uso). Use uma
         pasta do OneDrive ou um pendrive para ter cópia fora do computador.
       </p>
 

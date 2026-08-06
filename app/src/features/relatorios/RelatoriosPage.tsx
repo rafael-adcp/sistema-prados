@@ -44,7 +44,13 @@ function paraBusca(filtros: Filtros): Busca | null {
   return { tipo: "placa", prefixo: prefixoDePlaca(filtros.termo) };
 }
 
-export function RelatoriosPage({ aoVerHistorico }: { aoVerHistorico: (placa: string) => void }) {
+interface PropsDaPagina {
+  aoVerHistorico: (placa: string) => void;
+  /** Injetável só para o teste conseguir estourar o limite sem montar 5.000 linhas. */
+  limite?: number;
+}
+
+export function RelatoriosPage({ aoVerHistorico, limite = LIMITE_DO_RELATORIO }: PropsDaPagina) {
   const repositorio = useRepositorio();
   const [filtros, setFiltros] = useState<Filtros>({
     tipo: "periodo",
@@ -62,14 +68,17 @@ export function RelatoriosPage({ aoVerHistorico }: { aoVerHistorico: (placa: str
     setErro(null);
   };
 
+  /** Sem isto o botão ficava habilitado e o clique não fazia nada, sem avisar. */
+  const buscaPronta = paraBusca(filtros);
+
   const gerar = async () => {
-    const busca = paraBusca(filtros);
+    const busca = buscaPronta;
     if (busca === null) return;
     const filtrosUsados = filtros;
     setGerando(true);
     setErro(null);
     try {
-      const pagina = await repositorio.buscar(busca, 0, LIMITE_DO_RELATORIO);
+      const pagina = await repositorio.buscar(busca, 0, limite);
       setRelatorio({ pagina, filtros: filtrosUsados });
     } catch (causa) {
       console.error("Relatório falhou:", causa);
@@ -132,7 +141,12 @@ export function RelatoriosPage({ aoVerHistorico }: { aoVerHistorico: (placa: str
               />
             </label>
           )}
-          <button type="submit" className="botao-principal" disabled={gerando}>
+          <button
+            type="submit"
+            className="botao-principal"
+            disabled={gerando || buscaPronta === null}
+            title={buscaPronta === null ? "Preencha o filtro para gerar o relatório" : undefined}
+          >
             {gerando ? "Gerando…" : "Gerar relatório"}
           </button>
           {relatorio !== null && (
@@ -152,10 +166,10 @@ export function RelatoriosPage({ aoVerHistorico }: { aoVerHistorico: (placa: str
               {relatorio.pagina.total.toLocaleString("pt-BR")} serviço(s) · emitido em{" "}
               {formatarDataBr(hojeIso())}
             </p>
-            {relatorio.pagina.total > LIMITE_DO_RELATORIO && (
+            {relatorio.pagina.total > limite && (
               <p className="aviso">
-                Mostrando os primeiros {LIMITE_DO_RELATORIO.toLocaleString("pt-BR")} — refine o
-                filtro para um relatório completo.
+                Mostrando os primeiros {limite.toLocaleString("pt-BR")} — refine o filtro para um
+                relatório completo.
               </p>
             )}
           </header>

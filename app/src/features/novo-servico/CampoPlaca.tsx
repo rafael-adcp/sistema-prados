@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import { useRepositorio } from "../../data/ProvedorDeDados";
 import type { SugestaoDePlaca } from "../../data/servicoRepository";
 import { formatarDataBr } from "../../domain/datas";
@@ -19,10 +19,13 @@ export function CampoPlaca({ valor, aoDigitar, aoEscolher, ref }: Props) {
   const repositorio = useRepositorio();
   const [sugestoes, setSugestoes] = useState<SugestaoDePlaca[]>([]);
   const [aberto, setAberto] = useState(false);
+  /** -1 = nenhuma destacada; o Enter então salva o serviço, como sempre fez. */
+  const [destacada, setDestacada] = useState(-1);
   const timerFechar = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const prefixo = prefixoDePlaca(valor);
+    setDestacada(-1); // lista nova, destaque antigo não vale mais
     if (prefixo.length < 2) {
       setSugestoes([]);
       return;
@@ -46,10 +49,40 @@ export function CampoPlaca({ valor, aoDigitar, aoEscolher, ref }: Props) {
 
   const escolher = (sugestao: SugestaoDePlaca) => {
     setAberto(false);
+    setDestacada(-1);
     aoEscolher(sugestao);
   };
 
   const mostrarLista = aberto && sugestoes.length > 0;
+
+  /** Navegação por teclado: o foco nunca sai do campo — as opções são destacadas,
+   *  não focadas (padrão combobox). Sem isto a lista só funcionava com o mouse. */
+  const aoTeclar = (evento: KeyboardEvent<HTMLInputElement>) => {
+    if (evento.key === "Escape") {
+      setAberto(false);
+      setDestacada(-1);
+      return;
+    }
+    if (evento.key === "Enter" && mostrarLista && destacada >= 0) {
+      evento.preventDefault(); // seleciona a placa em vez de submeter o formulário
+      escolher(sugestoes[destacada]);
+      return;
+    }
+    if (evento.key !== "ArrowDown" && evento.key !== "ArrowUp") return;
+    evento.preventDefault();
+    if (!aberto) {
+      setAberto(true);
+      return;
+    }
+    if (sugestoes.length === 0) return;
+    const passo = evento.key === "ArrowDown" ? 1 : -1;
+    setDestacada((atual) => {
+      const proxima = atual + passo;
+      if (proxima < 0) return sugestoes.length - 1;
+      if (proxima >= sugestoes.length) return 0;
+      return proxima;
+    });
+  };
 
   return (
     <div className="campo-placa">
@@ -62,6 +95,14 @@ export function CampoPlaca({ valor, aoDigitar, aoEscolher, ref }: Props) {
         spellCheck={false}
         maxLength={8}
         autoFocus
+        role="combobox"
+        aria-expanded={mostrarLista}
+        aria-controls="sugestoes-de-placa"
+        aria-autocomplete="list"
+        aria-activedescendant={
+          mostrarLista && destacada >= 0 ? `sugestao-${sugestoes[destacada].placa}` : undefined
+        }
+        onKeyDown={aoTeclar}
         onChange={(evento) => {
           aoDigitar(evento.target.value);
           setAberto(true);
@@ -75,10 +116,22 @@ export function CampoPlaca({ valor, aoDigitar, aoEscolher, ref }: Props) {
         }}
       />
       {mostrarLista && (
-        <ul className="sugestoes">
-          {sugestoes.map((sugestao) => (
-            <li key={sugestao.placa}>
-              <button type="button" onMouseDown={() => escolher(sugestao)}>
+        <ul className="sugestoes" id="sugestoes-de-placa" role="listbox">
+          {sugestoes.map((sugestao, indice) => (
+            <li key={sugestao.placa} role="presentation">
+              <button
+                type="button"
+                id={`sugestao-${sugestao.placa}`}
+                role="option"
+                aria-selected={indice === destacada}
+                className={indice === destacada ? "sugestao-destacada" : undefined}
+                tabIndex={-1}
+                // preventDefault segura o foco no campo; a escolha acontece no onClick,
+                // que o mouse E o teclado disparam.
+                onMouseDown={(evento) => evento.preventDefault()}
+                onClick={() => escolher(sugestao)}
+                onMouseEnter={() => setDestacada(indice)}
+              >
                 <strong>{sugestao.placa}</strong>
                 <span>{sugestao.carro || "carro não informado"}</span>
                 <span className="sugestao-data">{formatarDataBr(sugestao.data)}</span>

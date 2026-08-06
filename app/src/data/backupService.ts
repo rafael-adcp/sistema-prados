@@ -3,15 +3,12 @@ import { join } from "@tauri-apps/api/path";
 import { deveFazerBackupAutomatico } from "../domain/backup";
 import { hojeIso, timestampParaArquivo } from "../domain/datas";
 import type { ConfigRepository } from "./configRepository";
+import { escaparParaSql } from "./copiaDeSeguranca";
 import { fecharBanco, obterBanco } from "./database";
 import type { PortaDoBanco } from "./portaDoBanco";
 
 export const CONFIG_PASTA_BACKUP = "pasta_backup";
 export const CONFIG_ULTIMO_BACKUP = "ultimo_backup_em";
-
-function escaparParaSql(caminho: string): string {
-  return caminho.replace(/'/g, "''");
-}
 
 /**
  * Backup = `VACUUM INTO` (cópia íntegra e compacta do SQLite, segura mesmo com
@@ -47,7 +44,7 @@ export class BackupService {
     return destino;
   }
 
-  /** Chamado na abertura do app: faz backup semanal sem incomodar ninguém. */
+  /** Chamado na abertura do app: faz o backup do dia sem incomodar ninguém. */
   async fazerBackupAutomaticoSePrecisar(): Promise<void> {
     const pasta = await this.pastaConfigurada();
     if (pasta === null) return;
@@ -55,6 +52,15 @@ export class BackupService {
     if (deveFazerBackupAutomatico(ultimo, hojeIso())) {
       await this.executarBackup(pasta);
     }
+  }
+
+  /**
+   * Confere que o arquivo é mesmo um banco do Sistema Prado e devolve quantos
+   * serviços ele tem — para a tela conseguir mostrar "este arquivo tem N, o
+   * atual tem M" antes de qualquer coisa ser substituída.
+   */
+  async inspecionarBanco(caminho: string): Promise<number> {
+    return invoke<number>("validar_banco", { caminho });
   }
 
   /**
