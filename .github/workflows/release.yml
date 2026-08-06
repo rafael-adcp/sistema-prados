@@ -73,8 +73,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/package.json app/src-tauri/tauri.conf.json app/src-tauri/Cargo.toml app/src-tauri/Cargo.lock
           git commit -m "Versao ${{ steps.versao.outputs.numero }}"
-          git tag "${{ steps.versao.outputs.tag }}"
+          # O commit vai PRIMEIRO. Se ele for recusado (main andou no meio do
+          # caminho), o job morre aqui sem ter criado tag nenhuma. Na ordem
+          # anterior a tag ia junto e sobrava apontando para o commit sem bump —
+          # uma v2.1.0 cujo tauri.conf.json ainda dizia 2.0.0.
           git push origin HEAD:main
+          git tag "${{ steps.versao.outputs.tag }}"
           git push origin "${{ steps.versao.outputs.tag }}"
 
       - name: Instalar dependencias
