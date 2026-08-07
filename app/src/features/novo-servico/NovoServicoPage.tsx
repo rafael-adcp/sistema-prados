@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useRepositorio } from "../../data/ProvedorDeDados";
-import type { SugestaoDePlaca } from "../../data/servicoRepository";
 import { hojeIso } from "../../domain/datas";
 import { normalizarPlaca } from "../../domain/placa";
 import {
@@ -105,7 +104,7 @@ export function NovoServicoPage({ aoVerHistorico }: { aoVerHistorico: (placa: st
     };
   }, [repositorio, placaNormalizada]);
 
-  const escolherSugestao = (sugestao: SugestaoDePlaca) => {
+  const escolherSugestao = (sugestao: Servico) => {
     alterar({ placa: sugestao.placa, carro: sugestao.carro });
     carroAutoPreenchido.current = sugestao.carro;
     kmRef.current?.focus();

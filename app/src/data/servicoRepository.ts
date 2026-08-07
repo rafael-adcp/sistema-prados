@@ -11,12 +11,6 @@ export interface PaginaDeServicos {
   total: number;
 }
 
-export interface SugestaoDePlaca {
-  placa: string;
-  carro: string;
-  data: string | null;
-}
-
 export interface LinhaServico {
   id: number;
   carro: string;
@@ -111,10 +105,12 @@ export class ServicoRepository {
     return linhas.map(paraServico);
   }
 
-  /** Placas que começam com o prefixo, das visitas mais recentes para as antigas. */
-  async sugestoesDePlaca(prefixo: string, limite: number): Promise<SugestaoDePlaca[]> {
-    return this.db.select<SugestaoDePlaca[]>(
-      `SELECT s.placa, s.carro, s.data
+  /** A última visita de cada placa que começa com o prefixo, das mais recentes para as antigas. */
+  async sugestoesDePlaca(prefixo: string, limite: number): Promise<Servico[]> {
+    const linhas = await this.db.select<LinhaServico[]>(
+      `SELECT ${COLUNAS.split(", ")
+        .map((coluna) => `s.${coluna}`)
+        .join(", ")}
        FROM servicos s
        JOIN (
          SELECT placa, MAX(id) AS ultimo_id
@@ -126,6 +122,7 @@ export class ServicoRepository {
        LIMIT $3`,
       [prefixo, prefixo + FIM_DO_PREFIXO, limite],
     );
+    return linhas.map(paraServico);
   }
 
   async inserir(novo: NovoServico): Promise<number> {

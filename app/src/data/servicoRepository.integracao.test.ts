@@ -178,16 +178,27 @@ describe("ultimaTroca / contarPorPlaca / historico", () => {
 });
 
 describe("sugestoesDePlaca", () => {
-  it("uma sugestão por placa, com o carro da visita mais recente, sem placas vazias", async () => {
+  it("uma sugestão por placa, com os dados da visita mais recente, sem placas vazias", async () => {
     await semear([
-      importado({ id: 1, placa: "ABC1234", carro: "ANTIGO", data: "2019-07-19" }),
-      importado({ id: 2, placa: "ABC1234", carro: "35S14", data: "2024-04-08" }),
+      importado({ id: 1, placa: "ABC1234", carro: "ANTIGO", produto: "PRODUTO VELHO", data: "2019-07-19" }),
+      importado({
+        id: 2,
+        placa: "ABC1234",
+        carro: "35S14",
+        produto: "4 HAV 5W30",
+        km: 126705,
+        kmRaw: "126.705",
+        data: "2024-04-08",
+      }),
       importado({ id: 3, placa: "ABC1230", carro: "DAIKY", data: "2020-01-01" }),
       importado({ id: 4, placa: "", carro: "FANTASMA", data: "2026-01-01" }),
     ]);
     const sugestoes = await repositorio.sugestoesDePlaca("ABC", 8);
     expect(sugestoes.map((s) => s.placa)).toEqual(["ABC1230", "ABC1234"]);
     expect(sugestoes[1].carro).toBe("35S14");
+    expect(sugestoes[1].produto).toBe("4 HAV 5W30");
+    expect(sugestoes[1].km).toBe(126705);
+    expect(sugestoes[1].data).toBe("2024-04-08");
   });
 });
 

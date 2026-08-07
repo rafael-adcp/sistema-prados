@@ -272,6 +272,23 @@ a:focus-visible {
   font-size: 14px;
 }
 
+/* Segunda linha da sugestão: o que foi feito sob o carro, o km sob a data —
+   a placa fica sozinha na primeira coluna. */
+.sugestao-produto {
+  grid-column: 2;
+  color: var(--tinta-suave);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sugestao-km {
+  grid-column: 3;
+  color: var(--tinta-suave);
+  font-size: 14px;
+}
+
 /* ---------- Cartão de última troca ---------- */
 
 .cartao-ultima-troca {
@@ -289,16 +306,6 @@ a:focus-visible {
   font-size: 16px;
   text-transform: uppercase;
   letter-spacing: 1px;
-}
-
-.ultima-troca-produto {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0 0 4px;
-}
-
-.ultima-troca-carro {
-  color: var(--tinta-suave);
 }
 
 /* ---------- Tabela ---------- */

@@ -12,8 +12,8 @@ interface Props {
 export function CartaoUltimaTroca({ servico, totalDeVisitas, aoVerHistorico }: Props) {
   return (
     <aside className="cartao-ultima-troca">
-      <h3>Última troca desta placa</h3>
-      <p className="ultima-troca-produto">{servico.produto || "—"}</p>
+      <h3>Última troca de "{servico.placa}"</h3>
+      <p>{servico.carro}</p>
       <p>
         {formatarDataBr(servico.data)}
         {servico.dataSuspeita && (
@@ -23,7 +23,9 @@ export function CartaoUltimaTroca({ servico, totalDeVisitas, aoVerHistorico }: P
         )}{" "}
         · {formatarKm(servico.km, servico.kmRaw) || "km não informado"}
       </p>
-      <p className="ultima-troca-carro">{servico.carro}</p>
+      <p>
+        <b>{servico.produto || "—"}</b>
+      </p>
       <button type="button" className="botao-secundario" onClick={() => aoVerHistorico(servico.placa)}>
         Ver histórico completo ({totalDeVisitas.toLocaleString("pt-BR")} visita{totalDeVisitas === 1 ? "" : "s"})
       </button>

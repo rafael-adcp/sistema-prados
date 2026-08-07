@@ -81,7 +81,7 @@ describe("fluxo do balcão", () => {
     expect(limpar).toBeDisabled();
 
     await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "ABC1234");
-    expect(await screen.findByText(/última troca desta placa/i)).toBeInTheDocument();
+    expect(await screen.findByText(/última troca de/i)).toBeInTheDocument();
     await usuario.type(screen.getByPlaceholderText(/123456/), "125000");
     expect(limpar).toBeEnabled();
 
@@ -90,7 +90,7 @@ describe("fluxo do balcão", () => {
     expect(screen.getByPlaceholderText(/GOL 1.0 16V/i)).toHaveValue("");
     expect(screen.getByPlaceholderText(/123456/)).toHaveValue("");
     await waitFor(() =>
-      expect(screen.queryByText(/última troca desta placa/i)).not.toBeInTheDocument(),
+      expect(screen.queryByText(/última troca de/i)).not.toBeInTheDocument(),
     );
     expect(screen.getByPlaceholderText(/ABC1234/i)).toHaveFocus();
     expect(limpar).toBeDisabled();
@@ -226,7 +226,7 @@ describe("fluxo do balcão", () => {
 
     await usuario.type(screen.getByPlaceholderText(/GOL 1.0 16V/i), "PALIO WEEKEND");
     await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "ABC1234");
-    expect(await screen.findByText(/última troca desta placa/i)).toBeInTheDocument();
+    expect(await screen.findByText(/última troca de/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/GOL 1.0 16V/i)).toHaveValue("PALIO WEEKEND");
   });
 
@@ -248,7 +248,7 @@ describe("fluxo do balcão", () => {
     await usuario.type(campoPlaca, "{backspace}5");
 
     await waitFor(() => expect(campoPlaca).toHaveValue("ABC1235"));
-    expect(screen.queryByText(/última troca desta placa/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/última troca de/i)).not.toBeInTheDocument();
   });
 
   it("autocomplete de placa preenche o carro, mostra a última troca e salva", async () => {
@@ -259,10 +259,13 @@ describe("fluxo do balcão", () => {
     renderizar();
 
     await usuario.type(screen.getByPlaceholderText(/ABC1234/i), "ABC12");
-    await usuario.click(await screen.findByRole("option", { name: /ABC1234/ }));
+    const opcao = await screen.findByRole("option", { name: /ABC1234/ });
+    expect(opcao).toHaveTextContent("4 HAV");
+    expect(opcao).toHaveTextContent("100.000 km");
+    await usuario.click(opcao);
 
     expect(screen.getByPlaceholderText(/GOL 1.0 16V/i)).toHaveValue("35S14");
-    expect(await screen.findByText(/última troca desta placa/i)).toBeInTheDocument();
+    expect(await screen.findByText(/última troca de/i)).toBeInTheDocument();
     expect(screen.getByText("4 HAV")).toBeInTheDocument();
 
     await usuario.type(screen.getByPlaceholderText(/123456/), "125000");

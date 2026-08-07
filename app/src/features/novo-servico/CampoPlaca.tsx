@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import { useRepositorio } from "../../data/ProvedorDeDados";
-import type { SugestaoDePlaca } from "../../data/servicoRepository";
 import { formatarDataBr } from "../../domain/datas";
+import { formatarKm } from "../../domain/km";
 import { prefixoDePlaca } from "../../domain/placa";
+import type { Servico } from "../../domain/servico";
 
 const DEBOUNCE_MS = 150;
 const MAXIMO_DE_SUGESTOES = 8;
@@ -10,14 +11,14 @@ const MAXIMO_DE_SUGESTOES = 8;
 interface Props {
   valor: string;
   aoDigitar: (placa: string) => void;
-  aoEscolher: (sugestao: SugestaoDePlaca) => void;
+  aoEscolher: (sugestao: Servico) => void;
   ref?: Ref<HTMLInputElement>;
 }
 
 /** Campo de placa com autocomplete sobre as 47 mil placas já atendidas. */
 export function CampoPlaca({ valor, aoDigitar, aoEscolher, ref }: Props) {
   const repositorio = useRepositorio();
-  const [sugestoes, setSugestoes] = useState<SugestaoDePlaca[]>([]);
+  const [sugestoes, setSugestoes] = useState<Servico[]>([]);
   const [aberto, setAberto] = useState(false);
   /** -1 = nenhuma destacada; o Enter então salva o serviço, como sempre fez. */
   const [destacada, setDestacada] = useState(-1);
@@ -47,7 +48,7 @@ export function CampoPlaca({ valor, aoDigitar, aoEscolher, ref }: Props) {
 
   useEffect(() => () => clearTimeout(timerFechar.current), []);
 
-  const escolher = (sugestao: SugestaoDePlaca) => {
+  const escolher = (sugestao: Servico) => {
     setAberto(false);
     setDestacada(-1);
     aoEscolher(sugestao);
@@ -134,7 +135,23 @@ export function CampoPlaca({ valor, aoDigitar, aoEscolher, ref }: Props) {
               >
                 <strong>{sugestao.placa}</strong>
                 <span>{sugestao.carro || "carro não informado"}</span>
-                <span className="sugestao-data">{formatarDataBr(sugestao.data)}</span>
+                <span className="sugestao-data">
+                  {formatarDataBr(sugestao.data)}
+                  {sugestao.dataSuspeita && (
+                    <span
+                      className="badge-suspeita"
+                      title="Data provavelmente digitada errada no sistema antigo"
+                    >
+                      ?
+                    </span>
+                  )}
+                </span>
+                {sugestao.produto !== "" && (
+                  <span className="sugestao-produto">{sugestao.produto}</span>
+                )}
+                {formatarKm(sugestao.km, sugestao.kmRaw) !== "" && (
+                  <span className="sugestao-km">{formatarKm(sugestao.km, sugestao.kmRaw)}</span>
+                )}
               </button>
             </li>
           ))}

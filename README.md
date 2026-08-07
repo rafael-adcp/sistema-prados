@@ -77,7 +77,7 @@ Validado com o `.mdb` real: **140.840 = 140.840**, 47.436 placas. O banco result
 | Tela | Resumo |
 |---|---|
 | **Consultas** | Uma caixa que entende placa, texto (carro/produto) ou data. Fallback: termo com cara de placa sem resultado refaz como texto. Paginação (50/pág.), debounce 250 ms. |
-| **Novo Serviço** | Placa com autocomplete sobre as 47 mil placas → preenche carro + cartão da última troca. Data padrão hoje, campos grandes, Enter salva. |
+| **Novo Serviço** | Placa com autocomplete sobre as 47 mil placas → cada sugestão mostra a última troca completa (carro, produto, km e data) e preenche carro + cartão da última troca. Data padrão hoje, campos grandes, Enter salva. |
 | **Histórico** | Todas as visitas da placa (data, km, produto) + "cliente desde…" + imprimir. |
 | **Relatórios** | Os mesmos 3 do sistema antigo (período, carro, placa), com layout de impressão. |
 | **Análises** | Recria o BI de 2016 sobre os dados atuais: cartões (mês atual × mesmo mês do ano passado × média histórica), 5 gráficos (billboard.js, fork do C3 usado no BI original), KPIs mín/média/máx, sazonalidade, retorno de clientes, top produtos + **Qualidade dos dados** (11 relatórios de inconsistência com correção direto da tela). Só calcula com a aba aberta; seletor de ano (padrão: ano atual — gráficos por ano e sazonalidade seguem multi-anos); imprime. |
