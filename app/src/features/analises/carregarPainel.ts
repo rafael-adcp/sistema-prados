@@ -19,8 +19,11 @@ import type { NumerosDaOficina } from "./numerosDaOficina";
  */
 export const ANOS_NO_GRAFICO_MENSAL = 10;
 
-/** Linhas no gráfico de evolução do mix de produtos. */
-export const PRODUTOS_NO_GRAFICO_DE_MIX = 5;
+/**
+ * Linhas nos gráficos de evolução do mix (produtos e carros). 10 é o teto da
+ * paleta do billboard — mais que isso as cores ciclariam.
+ */
+export const ITENS_NO_GRAFICO_DE_MIX = 10;
 
 export interface PainelDeAnalises {
   base: BaseDeAnalise;
@@ -54,6 +57,9 @@ export async function carregarPainel(
   anoEscolhido: string,
 ): Promise<PainelDeAnalises> {
   const periodo = paraPeriodo(anoEscolhido);
+  // Nos gráficos de mix o recorte é "a base como estava até o ano": com um ano
+  // escolhido, top e linhas param nele, em vez de mostrar só aquele ano.
+  const ateAno = anoEscolhido === "todos" ? undefined : anoEscolhido;
   const mesAtual = mesIsoDe(hoje);
   const { base, contagens, anosDoBanco, ...numeros } = await aguardarNomeados({
     base: qualidade.contarBase(),
@@ -64,8 +70,13 @@ export async function carregarPainel(
     placasDistintasPorAno: analises.placasDistintasPorAno(),
     novosERecorrentes: analises.novosERecorrentesPorAno(),
     retornoDosNovos: analises.retornoDosNovosPorAno(),
-    produtosPorAno: analises.produtosPorAno(PRODUTOS_NO_GRAFICO_DE_MIX),
+    produtosPorAno: analises.produtosPorAno(ITENS_NO_GRAFICO_DE_MIX, ateAno),
+    carrosPorAno: analises.carrosPorAno(ITENS_NO_GRAFICO_DE_MIX, ateAno),
     faixasDeRetorno: analises.faixasDeRetorno(periodo),
+    faixasDeVisitas: analises.carrosPorFaixaDeVisitas(periodo),
+    concentracao: analises.concentracaoDeClientes(periodo),
+    retornoPorProduto: analises.retornoPorProduto(10, periodo),
+    topCarros: analises.topCarros(10, periodo),
     retornoPorAno: analises.retornoPorAno(),
     porDia: analises.resumoDeTrocas("dia", periodo),
     porMes: analises.resumoDeTrocas("mes", periodo),

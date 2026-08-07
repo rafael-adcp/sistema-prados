@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import {
   DIAS_DA_SEMANA,
   FAIXAS_DE_RETORNO,
+  FAIXAS_DE_VISITAS,
+  montarSeriesDeItens,
   percentual,
   resumoDosRetornos,
   totaisPorDiaDaSemana,
@@ -9,9 +11,11 @@ import {
   type RetornoNoAno,
 } from "../../domain/analises";
 import { Grafico } from "../../ui/Grafico";
+import { ITENS_NO_GRAFICO_DE_MIX } from "./carregarPainel";
 import { inteiro, type IndicadoresDoAno } from "./numerosDaOficina";
 import { TabelaKpi } from "./TabelaKpi";
-import { TabelaTopProdutos } from "./TabelaTopProdutos";
+import { TabelaRetornoPorProduto } from "./TabelaRetornoPorProduto";
+import { TabelaTop } from "./TabelaTop";
 
 interface Props {
   indicadores: IndicadoresDoAno;
@@ -31,6 +35,7 @@ export function SecaoIndicadoresDoAno({
   aoEscolherAno,
 }: Props) {
   const rotuloDoAno = anoEscolhido === "todos" ? "todos os anos" : anoEscolhido;
+  const sufixoDoMix = anoEscolhido === "todos" ? "" : ` até ${anoEscolhido}`;
   const retornosDoRecorte =
     anoEscolhido === "todos"
       ? retornoPorAno
@@ -39,10 +44,38 @@ export function SecaoIndicadoresDoAno({
   const faixas = useMemo(
     () => ({
       rotulosX: FAIXAS_DE_RETORNO.map((faixa) => faixa.rotulo),
-      series: [{ nome: "Retornos", pontos: totaisPorFaixa(indicadores.faixasDeRetorno) }],
+      series: [
+        {
+          nome: "Retornos",
+          pontos: totaisPorFaixa(indicadores.faixasDeRetorno, FAIXAS_DE_RETORNO),
+        },
+      ],
     }),
     [indicadores.faixasDeRetorno],
   );
+
+  const visitas = useMemo(
+    () => ({
+      rotulosX: FAIXAS_DE_VISITAS.map((faixa) => faixa.rotulo),
+      series: [
+        { nome: "Carros", pontos: totaisPorFaixa(indicadores.faixasDeVisitas, FAIXAS_DE_VISITAS) },
+      ],
+    }),
+    [indicadores.faixasDeVisitas],
+  );
+
+  // Com um ano escolhido, o gráfico é "a base como estava até aquele ano":
+  // o eixo para nele e o top vem só do que existia então (o corte da consulta).
+  const mix = useMemo(() => {
+    const anosDoEixo = [...anos]
+      .sort()
+      .filter((ano) => anoEscolhido === "todos" || ano <= anoEscolhido);
+    return {
+      rotulosX: anosDoEixo,
+      produtos: montarSeriesDeItens(indicadores.produtosPorAno, anosDoEixo),
+      carros: montarSeriesDeItens(indicadores.carrosPorAno, anosDoEixo),
+    };
+  }, [indicadores.produtosPorAno, indicadores.carrosPorAno, anos, anoEscolhido]);
 
   const diasDaSemana = useMemo(
     () => ({
@@ -51,7 +84,7 @@ export function SecaoIndicadoresDoAno({
     [indicadores.porDiaDaSemana],
   );
 
-  const { retorno } = indicadores;
+  const { retorno, concentracao } = indicadores;
 
   return (
     <div className="secao-analises">
@@ -83,6 +116,18 @@ export function SecaoIndicadoresDoAno({
           <strong>{inteiro(retorno.total)}</strong>
           <span>Carros atendidos</span>
         </div>
+        {/* Menos de 5 carros não têm "20%": o SQL devolve tudo zero e vira "—". */}
+        <div className="cartao-resumo">
+          <strong>
+            {concentracao.carrosNoTopo === 0
+              ? "—"
+              : percentual(concentracao.trocasDoTopo, concentracao.trocasTotal)}
+          </strong>
+          <span>
+            Trocas feitas pelos 20% mais fiéis
+            {concentracao.carrosNoTopo === 0 ? "" : ` (${inteiro(concentracao.carrosNoTopo)} carros)`}
+          </span>
+        </div>
       </div>
 
       <div className="grade-de-graficos">
@@ -98,8 +143,46 @@ export function SecaoIndicadoresDoAno({
           rotulosX={DIAS_DA_SEMANA}
           series={diasDaSemana.series}
         />
-        <TabelaTopProdutos titulo={`Produtos mais usados — ${rotuloDoAno}`} linhas={indicadores.topProdutos} />
+        <Grafico
+          titulo={`Visitas por carro — ${rotuloDoAno}`}
+          tipo="barra"
+          rotulosX={visitas.rotulosX}
+          series={visitas.series}
+        />
+        <TabelaRetornoPorProduto
+          titulo={`Dias para voltar, por produto — ${rotuloDoAno}`}
+          linhas={indicadores.retornoPorProduto}
+        />
+        <TabelaTop
+          titulo={`Produtos mais usados — ${rotuloDoAno}`}
+          coluna="Produto"
+          linhas={indicadores.topProdutos}
+          vazio="Nenhum produto registrado."
+        />
+        <TabelaTop
+          titulo={`Carros mais atendidos — ${rotuloDoAno}`}
+          coluna="Carro"
+          linhas={indicadores.topCarros}
+          vazio="Nenhum carro registrado."
+        />
       </div>
+      <p className="texto-apoio">
+        Nos dias para voltar por produto, o produto considerado é o da troca anterior — o que
+        estava no carro durante o intervalo até a volta.
+      </p>
+
+      <Grafico
+        titulo={`Produtos mais usados ao longo dos anos${sufixoDoMix} — top ${ITENS_NO_GRAFICO_DE_MIX}`}
+        tipo="linha"
+        rotulosX={mix.rotulosX}
+        series={mix.produtos}
+      />
+      <Grafico
+        titulo={`Carros mais atendidos ao longo dos anos${sufixoDoMix} — top ${ITENS_NO_GRAFICO_DE_MIX}`}
+        tipo="linha"
+        rotulosX={mix.rotulosX}
+        series={mix.carros}
+      />
 
       <div className="grade-de-tabelas">
         <TabelaKpi

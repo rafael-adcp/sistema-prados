@@ -1,5 +1,7 @@
 import {
   FAIXAS_DE_RETORNO,
+  FAIXAS_DE_VISITAS,
+  type Faixa,
   type PeriodoDeAnos,
   type ResumoMinMediaMax,
   type RetornoNoAno,
@@ -43,9 +45,24 @@ export interface ComparativoDoMes {
   mesAnoPassado: number;
 }
 
-export interface ProdutoMaisUsado {
-  produto: string;
+/** Um valor de coluna (produto, carro…) e quantas trocas o usaram. */
+export interface ItemMaisUsado {
+  nome: string;
   total: number;
+}
+
+/** Dias até o carro voltar, agrupados pelo produto da visita ANTERIOR. */
+export interface RetornoPorProduto {
+  produto: string;
+  retornos: number;
+  media: number;
+}
+
+export interface ConcentracaoDeClientes {
+  /** Quantos carros formam o quinto mais fiel (20%, arredondado para baixo). */
+  carrosNoTopo: number;
+  trocasDoTopo: number;
+  trocasTotal: number;
 }
 
 export interface NovosERecorrentesNoAno {
@@ -66,11 +83,15 @@ export interface TotalPorDiaDaSemana {
   total: number;
 }
 
-export interface ProdutoNoAno {
-  produto: string;
+/** Contagem anual de um valor de coluna (produto, carro…). */
+export interface ItemNoAno {
+  nome: string;
   ano: string;
   total: number;
 }
+
+/** As colunas de texto livre que viram "top" e "mix por ano". */
+type ColunaDeItem = "produto" | "carro";
 
 export type AgrupamentoDeTrocas = "dia" | "mes" | "ano";
 
@@ -85,12 +106,13 @@ interface FiltroDeBase {
   parametros: unknown[];
 }
 
-/** Faixa do intervalo em dias, gerada a partir de FAIXAS_DE_RETORNO. */
-function casePorFaixa(): string {
-  const condicoes = FAIXAS_DE_RETORNO.slice(0, -1)
-    .map((faixa, indice) => `WHEN dias <= ${faixa.ateDias} THEN ${indice}`)
+/** Nº da faixa do valor de `campo`, gerado da lista (CASE WHEN campo <= ate). */
+function casePorFaixa(faixas: Faixa[], campo: string): string {
+  const condicoes = faixas
+    .slice(0, -1)
+    .map((faixa, indice) => `WHEN ${campo} <= ${faixa.ate} THEN ${indice}`)
     .join(" ");
-  return `CASE ${condicoes} ELSE ${FAIXAS_DE_RETORNO.length - 1} END`;
+  return `CASE ${condicoes} ELSE ${faixas.length - 1} END`;
 }
 
 /**
@@ -150,7 +172,7 @@ export class AnaliseRepository {
     const corte = periodo === undefined ? "" : "AND ano BETWEEN $1 AND $2";
     const parametros = periodo === undefined ? [] : [periodo.deAno, periodo.ateAno];
     return this.db.select<TotalPorFaixa[]>(
-      `SELECT ${casePorFaixa()} AS faixa, COUNT(*) AS total
+      `SELECT ${casePorFaixa(FAIXAS_DE_RETORNO, "dias")} AS faixa, COUNT(*) AS total
        FROM (${this.sqlDeIntervalos(BASE)}) WHERE dias > 0 ${corte}
        GROUP BY faixa ORDER BY faixa`,
       parametros,
@@ -325,37 +347,133 @@ export class AnaliseRepository {
     );
   }
 
+  async produtosPorAno(limite: number, ateAno?: string): Promise<ItemNoAno[]> {
+    return this.itensPorAno("produto", limite, ateAno);
+  }
+
+  async carrosPorAno(limite: number, ateAno?: string): Promise<ItemNoAno[]> {
+    return this.itensPorAno("carro", limite, ateAno);
+  }
+
+  async topProdutos(limite: number, periodo?: PeriodoDeAnos): Promise<ItemMaisUsado[]> {
+    return this.topDeItens("produto", limite, periodo);
+  }
+
+  async topCarros(limite: number, periodo?: PeriodoDeAnos): Promise<ItemMaisUsado[]> {
+    return this.topDeItens("carro", limite, periodo);
+  }
+
   /**
-   * Contagem por ano dos produtos mais usados de toda a base (top `limite`).
-   * O top é global de propósito: as mesmas linhas atravessam todos os anos e
-   * mostram o mix migrando — um top por ano trocaria as linhas no meio.
+   * Dias até voltar, agrupados pelo produto da visita ANTERIOR — o que estava
+   * no carro durante o intervalo. Produtos com mais retornos primeiro (média
+   * de pouco retorno é ruído). O período corta pelo ano da visita de volta,
+   * o mesmo critério de faixasDeRetorno.
    */
-  async produtosPorAno(limite: number): Promise<ProdutoNoAno[]> {
-    return this.db.select<ProdutoNoAno[]>(
-      `WITH top AS (
-         SELECT produto FROM servicos WHERE ${BASE} AND produto <> ''
-         GROUP BY produto ORDER BY COUNT(*) DESC, produto LIMIT $1
-       )
-       SELECT produto, substr(data, 1, 4) AS ano, COUNT(*) AS total
-       FROM servicos
-       WHERE ${BASE} AND produto IN (SELECT produto FROM top)
-       GROUP BY produto, ano ORDER BY ano, produto`,
-      [limite],
+  async retornoPorProduto(limite: number, periodo?: PeriodoDeAnos): Promise<RetornoPorProduto[]> {
+    const corte = periodo === undefined ? "" : "AND ano BETWEEN $1 AND $2";
+    const parametros = periodo === undefined ? [] : [periodo.deAno, periodo.ateAno];
+    return this.db.select<RetornoPorProduto[]>(
+      `SELECT produto_anterior AS produto, COUNT(*) AS retornos, AVG(dias) AS media
+       FROM (${this.sqlDeIntervalos(BASE)})
+       WHERE dias > 0 AND produto_anterior <> '' ${corte}
+       GROUP BY produto ORDER BY retornos DESC, produto
+       LIMIT $${parametros.length + 1}`,
+      [...parametros, limite],
     );
   }
 
-  async topProdutos(limite: number, periodo?: PeriodoDeAnos): Promise<ProdutoMaisUsado[]> {
+  /** Carros por faixa de visitas (1, 2–3…): o histograma da fidelidade. */
+  async carrosPorFaixaDeVisitas(periodo?: PeriodoDeAnos): Promise<TotalPorFaixa[]> {
     const filtro = this.filtroDaBase(periodo);
-    return this.db.select<ProdutoMaisUsado[]>(
-      `SELECT produto, COUNT(*) AS total FROM servicos
-       WHERE ${filtro.where} AND produto <> ''
-       GROUP BY produto ORDER BY total DESC, produto
+    return this.db.select<TotalPorFaixa[]>(
+      `SELECT ${casePorFaixa(FAIXAS_DE_VISITAS, "visitas")} AS faixa, COUNT(*) AS total
+       FROM (
+         SELECT COUNT(*) AS visitas FROM servicos
+         WHERE ${filtro.where} AND placa <> ''
+         GROUP BY placa
+       )
+       GROUP BY faixa ORDER BY faixa`,
+      filtro.parametros,
+    );
+  }
+
+  /**
+   * Quanto das trocas vem dos 20% de carros que mais visitam (Pareto). O topo
+   * é floor(carros ÷ 5): com menos de 5 carros não há "20%" honesto e tudo sai
+   * zero — a tela mostra "—". Empatados na fronteira entram por ordem
+   * arbitrária, o que não muda o percentual de forma relevante.
+   */
+  async concentracaoDeClientes(periodo?: PeriodoDeAnos): Promise<ConcentracaoDeClientes> {
+    const filtro = this.filtroDaBase(periodo);
+    const linhas = await this.db.select<
+      { carros_no_topo: number; trocas_do_topo: number | null; trocas_total: number | null }[]
+    >(
+      `WITH visitas AS (
+         SELECT COUNT(*) AS n FROM servicos
+         WHERE ${filtro.where} AND placa <> ''
+         GROUP BY placa
+       ),
+       ordenadas AS (
+         SELECT n, ROW_NUMBER() OVER (ORDER BY n DESC) AS posicao,
+                COUNT(*) OVER () AS carros
+         FROM visitas
+       )
+       SELECT COUNT(*) AS carros_no_topo,
+              COALESCE(SUM(n), 0) AS trocas_do_topo,
+              (SELECT COALESCE(SUM(n), 0) FROM visitas) AS trocas_total
+       FROM ordenadas WHERE posicao * 5 <= carros`,
+      filtro.parametros,
+    );
+    const linha = linhas[0];
+    return {
+      carrosNoTopo: linha?.carros_no_topo ?? 0,
+      trocasDoTopo: linha?.trocas_do_topo ?? 0,
+      trocasTotal: linha?.trocas_total ?? 0,
+    };
+  }
+
+  // ---------- Privados ----------
+
+  /**
+   * Contagem por ano dos valores mais usados da coluna (top `limite`). O
+   * corte `ateAno` mostra a base como ela estava naquele ano — top e
+   * contagens ignoram tudo que veio depois: selecionar 2013 desenha o
+   * gráfico que existiria em 2013.
+   */
+  private async itensPorAno(
+    coluna: ColunaDeItem,
+    limite: number,
+    ateAno?: string,
+  ): Promise<ItemNoAno[]> {
+    const corte = ateAno === undefined ? "" : "AND substr(data, 1, 4) <= $2";
+    const parametros = ateAno === undefined ? [limite] : [limite, ateAno];
+    return this.db.select<ItemNoAno[]>(
+      `WITH top AS (
+         SELECT ${coluna} AS nome FROM servicos WHERE ${BASE} AND ${coluna} <> '' ${corte}
+         GROUP BY nome ORDER BY COUNT(*) DESC, nome LIMIT $1
+       )
+       SELECT ${coluna} AS nome, substr(data, 1, 4) AS ano, COUNT(*) AS total
+       FROM servicos
+       WHERE ${BASE} AND ${coluna} IN (SELECT nome FROM top) ${corte}
+       GROUP BY nome, ano ORDER BY ano, nome`,
+      parametros,
+    );
+  }
+
+  private async topDeItens(
+    coluna: ColunaDeItem,
+    limite: number,
+    periodo?: PeriodoDeAnos,
+  ): Promise<ItemMaisUsado[]> {
+    const filtro = this.filtroDaBase(periodo);
+    return this.db.select<ItemMaisUsado[]>(
+      `SELECT ${coluna} AS nome, COUNT(*) AS total FROM servicos
+       WHERE ${filtro.where} AND ${coluna} <> ''
+       GROUP BY nome ORDER BY total DESC, nome
        LIMIT $${filtro.parametros.length + 1}`,
       [...filtro.parametros, limite],
     );
   }
-
-  // ---------- Privados ----------
 
   private filtroDaBase(periodo?: PeriodoDeAnos): FiltroDeBase {
     if (periodo === undefined) return { where: BASE, parametros: [] };
@@ -366,14 +484,17 @@ export class AnaliseRepository {
   }
 
   /**
-   * Dias entre visitas consecutivas da mesma placa (janela LAG). A primeira
-   * visita sai com dias NULL e lançamentos do mesmo dia com dias 0 — quem
-   * consome filtra com "dias > 0".
+   * Dias entre visitas consecutivas da mesma placa (janela LAG), junto com o
+   * produto da visita anterior — o que estava no carro durante o intervalo.
+   * A primeira visita sai com dias NULL e lançamentos do mesmo dia com dias 0
+   * — quem consome filtra com "dias > 0".
    */
   private sqlDeIntervalos(where: string): string {
     return `SELECT substr(data, 1, 4) AS ano,
-              julianday(data) - julianday(LAG(data) OVER (PARTITION BY placa ORDER BY data, id)) AS dias
-            FROM servicos WHERE ${where} AND placa <> ''`;
+              julianday(data) - julianday(LAG(data) OVER janela) AS dias,
+              LAG(produto) OVER janela AS produto_anterior
+            FROM servicos WHERE ${where} AND placa <> ''
+            WINDOW janela AS (PARTITION BY placa ORDER BY data, id)`;
   }
 
   private paraResumo(

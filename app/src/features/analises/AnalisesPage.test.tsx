@@ -95,8 +95,16 @@ describe("números", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/produtos mais usados ao longo dos anos/i)).toBeInTheDocument();
     expect(screen.getByText(/trocas por dia da semana/i)).toBeInTheDocument();
+    expect(screen.getByText(/carros mais atendidos ao longo dos anos/i)).toBeInTheDocument();
+
+    const anoAtual = hoje.slice(0, 4);
+    expect(screen.getByText(`Visitas por carro — ${anoAtual}`)).toBeInTheDocument();
+    expect(screen.getByText(`Carros mais atendidos — ${anoAtual}`)).toBeInTheDocument();
+    expect(screen.getByText(`Dias para voltar, por produto — ${anoAtual}`)).toBeInTheDocument();
     // No recorte padrão (ano atual) o AAA0001 tem 1 visita só: ainda não "voltou".
     expect(screen.getByText(/carros que voltam/i).closest("div")).toHaveTextContent("0%");
+    // Um carro só na base: não existe "20% mais fiéis" e o cartão mostra "—".
+    expect(screen.getByText(/20% mais fiéis/i).closest("div")).toHaveTextContent("—");
   });
 
   it("mostra o aviso Recalculando… sobre o painel esmaecido e some no fim", async () => {

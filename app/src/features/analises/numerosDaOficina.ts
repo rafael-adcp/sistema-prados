@@ -1,10 +1,12 @@
 import type {
   ComparativoDoMes,
+  ConcentracaoDeClientes,
+  ItemMaisUsado,
+  ItemNoAno,
   NovosERecorrentesNoAno,
-  ProdutoMaisUsado,
-  ProdutoNoAno,
   RetornoDeClientes,
   RetornoDosNovosNoAno,
+  RetornoPorProduto,
   SazonalidadeDoMes,
   TotalPorAno,
   TotalPorDiaDaSemana,
@@ -27,7 +29,6 @@ export interface NumerosHistoricos {
   retornoPorAno: RetornoNoAno[];
   novosERecorrentes: NovosERecorrentesNoAno[];
   retornoDosNovos: RetornoDosNovosNoAno[];
-  produtosPorAno: ProdutoNoAno[];
   /** Sempre sobre todos os anos, para o cartão de média mensal histórica. */
   porMesHistorico: ResumoMinMediaMax | null;
   sazonalidade: SazonalidadeDoMes[];
@@ -36,13 +37,20 @@ export interface NumerosHistoricos {
 
 /** O que É recortado pelo ano escolhido. */
 export interface IndicadoresDoAno {
+  /** A base como estava até o ano escolhido: top e contagens param nele. */
+  produtosPorAno: ItemNoAno[];
+  carrosPorAno: ItemNoAno[];
   faixasDeRetorno: TotalPorFaixa[];
+  faixasDeVisitas: TotalPorFaixa[];
+  concentracao: ConcentracaoDeClientes;
   porDia: ResumoMinMediaMax | null;
   porMes: ResumoMinMediaMax | null;
   porAno: ResumoMinMediaMax | null;
   porDiaDaSemana: TotalPorDiaDaSemana[];
   retorno: RetornoDeClientes;
-  topProdutos: ProdutoMaisUsado[];
+  topProdutos: ItemMaisUsado[];
+  topCarros: ItemMaisUsado[];
+  retornoPorProduto: RetornoPorProduto[];
 }
 
 export type NumerosDaOficina = NumerosHistoricos & IndicadoresDoAno;

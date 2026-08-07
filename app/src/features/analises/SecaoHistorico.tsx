@@ -3,13 +3,12 @@ import {
   MESES_ABREVIADOS,
   mesIsoDe,
   mesmoMesDoAnoAnterior,
-  montarSeriesDeProdutos,
   montarSeriesPorAno,
   rotuloDeMes,
   rotuloDeMesCalendario,
 } from "../../domain/analises";
 import { Grafico } from "../../ui/Grafico";
-import { ANOS_NO_GRAFICO_MENSAL, PRODUTOS_NO_GRAFICO_DE_MIX } from "./carregarPainel";
+import { ANOS_NO_GRAFICO_MENSAL } from "./carregarPainel";
 import {
   emDias,
   emPercentual,
@@ -73,13 +72,6 @@ export function SecaoHistorico({ numeros, hoje }: Props) {
             pontos: numeros.retornoDosNovos.map((linha) => (linha.voltaram / linha.novos) * 100),
           },
         ],
-      },
-      produtos: {
-        rotulosX: numeros.trocasPorAno.map((linha) => linha.ano),
-        series: montarSeriesDeProdutos(
-          numeros.produtosPorAno,
-          numeros.trocasPorAno.map((linha) => linha.ano),
-        ),
       },
     };
   }, [numeros, hoje, mesAtual]);
@@ -159,12 +151,6 @@ export function SecaoHistorico({ numeros, hoje }: Props) {
         No gráfico de carros novos que voltaram, os anos recentes ainda vão subir: os carros que
         estrearam há pouco ainda estão dentro do prazo normal de retorno.
       </p>
-      <Grafico
-        titulo={`Produtos mais usados ao longo dos anos — top ${PRODUTOS_NO_GRAFICO_DE_MIX}`}
-        tipo="linha"
-        rotulosX={graficos.produtos.rotulosX}
-        series={graficos.produtos.series}
-      />
     </div>
   );
 }

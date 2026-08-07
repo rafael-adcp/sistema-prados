@@ -28,19 +28,33 @@ const NOMES_DOS_MESES = [
   "Dezembro",
 ];
 
+/** Um degrau de classificação: até `ate` (inclusive) cai aqui; null recolhe o resto. */
+export interface Faixa {
+  rotulo: string;
+  ate: number | null;
+}
+
 /**
  * Faixas de tempo até o carro voltar. A ordem importa: o SQL de agregação é
- * gerado daqui (CASE WHEN dias <= ateDias), e a última faixa (ateDias null)
+ * gerado daqui (CASE WHEN dias <= ate), e a última faixa (ate null)
  * recolhe todo o resto.
  */
-export const FAIXAS_DE_RETORNO: { rotulo: string; ateDias: number | null }[] = [
-  { rotulo: "Até 3 meses", ateDias: 92 },
-  { rotulo: "3 a 6 meses", ateDias: 183 },
-  { rotulo: "6 a 9 meses", ateDias: 274 },
-  { rotulo: "9 a 12 meses", ateDias: 366 },
-  { rotulo: "1 a 1,5 ano", ateDias: 548 },
-  { rotulo: "1,5 a 2 anos", ateDias: 731 },
-  { rotulo: "Mais de 2 anos", ateDias: null },
+export const FAIXAS_DE_RETORNO: Faixa[] = [
+  { rotulo: "Até 3 meses", ate: 92 },
+  { rotulo: "3 a 6 meses", ate: 183 },
+  { rotulo: "6 a 9 meses", ate: 274 },
+  { rotulo: "9 a 12 meses", ate: 366 },
+  { rotulo: "1 a 1,5 ano", ate: 548 },
+  { rotulo: "1,5 a 2 anos", ate: 731 },
+  { rotulo: "Mais de 2 anos", ate: null },
+];
+
+/** Visitas de cada carro na vida, em degraus — a fidelidade em histograma. */
+export const FAIXAS_DE_VISITAS: Faixa[] = [
+  { rotulo: "1 visita", ate: 1 },
+  { rotulo: "2 a 3", ate: 3 },
+  { rotulo: "4 a 9", ate: 9 },
+  { rotulo: "10 ou mais", ate: null },
 ];
 
 export interface SerieMensal {
@@ -77,9 +91,12 @@ export function montarSeriesPorAno(
   }));
 }
 
-/** Totais na ordem de FAIXAS_DE_RETORNO (faixas sem registro contam 0). */
-export function totaisPorFaixa(linhas: { faixa: number; total: number }[]): number[] {
-  const totais = FAIXAS_DE_RETORNO.map(() => 0);
+/** Totais na ordem das faixas dadas (faixas sem registro contam 0). */
+export function totaisPorFaixa(
+  linhas: { faixa: number; total: number }[],
+  faixas: Faixa[],
+): number[] {
+  const totais = faixas.map(() => 0);
   for (const linha of linhas) {
     if (linha.faixa >= 0 && linha.faixa < totais.length) totais[linha.faixa] = linha.total;
   }
@@ -104,33 +121,34 @@ export function totaisPorDiaDaSemana(linhas: { dia: string; total: number }[]): 
   return totais;
 }
 
-export interface ProdutoEmUmAno {
-  produto: string;
+export interface ItemEmUmAno {
+  nome: string;
   ano: string;
   total: number;
 }
 
 /**
- * Uma série por produto, alinhada aos anos do eixo (anos sem uso contam 0).
- * Produtos do mais usado ao menos usado, para a legenda listar nessa ordem.
+ * Uma série por item (produto, carro…), alinhada aos anos do eixo (anos sem
+ * uso contam 0). Itens do mais usado ao menos usado, para a legenda listar
+ * nessa ordem.
  */
-export function montarSeriesDeProdutos(
-  linhas: ProdutoEmUmAno[],
+export function montarSeriesDeItens(
+  linhas: ItemEmUmAno[],
   anos: string[],
 ): { nome: string; pontos: number[] }[] {
-  const totalPorProduto = new Map<string, number>();
+  const totalPorItem = new Map<string, number>();
   for (const linha of linhas) {
-    totalPorProduto.set(linha.produto, (totalPorProduto.get(linha.produto) ?? 0) + linha.total);
+    totalPorItem.set(linha.nome, (totalPorItem.get(linha.nome) ?? 0) + linha.total);
   }
-  const produtos = [...totalPorProduto.entries()]
+  const itens = [...totalPorItem.entries()]
     .sort(([nomeA, totalA], [nomeB, totalB]) =>
       totalA !== totalB ? totalB - totalA : nomeA.localeCompare(nomeB),
     )
     .map(([nome]) => nome);
-  const totais = new Map(linhas.map((linha) => [`${linha.produto}|${linha.ano}`, linha.total]));
-  return produtos.map((produto) => ({
-    nome: produto,
-    pontos: anos.map((ano) => totais.get(`${produto}|${ano}`) ?? 0),
+  const totais = new Map(linhas.map((linha) => [`${linha.nome}|${linha.ano}`, linha.total]));
+  return itens.map((item) => ({
+    nome: item,
+    pontos: anos.map((ano) => totais.get(`${item}|${ano}`) ?? 0),
   }));
 }
 

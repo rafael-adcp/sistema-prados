@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   DIAS_DA_SEMANA,
   FAIXAS_DE_RETORNO,
+  FAIXAS_DE_VISITAS,
   mediaDe,
   mesIsoDe,
   mesmoMesDoAnoAnterior,
-  montarSeriesDeProdutos,
+  montarSeriesDeItens,
   montarSeriesPorAno,
   percentual,
   periodoDeUltimosAnos,
@@ -40,19 +41,28 @@ describe("montarSeriesPorAno", () => {
   });
 });
 
-describe("faixas de retorno", () => {
+describe("faixas de retorno e de visitas", () => {
   it("a última faixa recolhe o resto (sem limite superior)", () => {
-    expect(FAIXAS_DE_RETORNO[FAIXAS_DE_RETORNO.length - 1].ateDias).toBeNull();
-    expect(FAIXAS_DE_RETORNO.slice(0, -1).every((faixa) => faixa.ateDias !== null)).toBe(true);
+    for (const faixas of [FAIXAS_DE_RETORNO, FAIXAS_DE_VISITAS]) {
+      expect(faixas[faixas.length - 1].ate).toBeNull();
+      expect(faixas.slice(0, -1).every((faixa) => faixa.ate !== null)).toBe(true);
+    }
   });
 
   it("totaisPorFaixa preenche com 0 as faixas sem registro e ignora índices inválidos", () => {
-    const totais = totaisPorFaixa([
-      { faixa: 0, total: 7 },
-      { faixa: 6, total: 2 },
-      { faixa: 99, total: 5 },
-    ]);
+    const totais = totaisPorFaixa(
+      [
+        { faixa: 0, total: 7 },
+        { faixa: 6, total: 2 },
+        { faixa: 99, total: 5 },
+      ],
+      FAIXAS_DE_RETORNO,
+    );
     expect(totais).toEqual([7, 0, 0, 0, 0, 0, 2]);
+  });
+
+  it("totaisPorFaixa acompanha o tamanho da lista de faixas", () => {
+    expect(totaisPorFaixa([{ faixa: 3, total: 4 }], FAIXAS_DE_VISITAS)).toEqual([0, 0, 0, 4]);
   });
 });
 
@@ -72,13 +82,13 @@ describe("dias da semana", () => {
   });
 });
 
-describe("montarSeriesDeProdutos", () => {
-  it("uma série por produto, do mais usado ao menos usado, com 0 nos anos sem uso", () => {
-    const series = montarSeriesDeProdutos(
+describe("montarSeriesDeItens", () => {
+  it("uma série por item, do mais usado ao menos usado, com 0 nos anos sem uso", () => {
+    const series = montarSeriesDeItens(
       [
-        { produto: "OLEO B", ano: "2020", total: 2 },
-        { produto: "OLEO A", ano: "2020", total: 3 },
-        { produto: "OLEO A", ano: "2022", total: 4 },
+        { nome: "OLEO B", ano: "2020", total: 2 },
+        { nome: "OLEO A", ano: "2020", total: 3 },
+        { nome: "OLEO A", ano: "2022", total: 4 },
       ],
       ["2020", "2021", "2022"],
     );
@@ -88,11 +98,11 @@ describe("montarSeriesDeProdutos", () => {
     ]);
   });
 
-  it("desempata produtos de mesmo total pelo nome", () => {
-    const series = montarSeriesDeProdutos(
+  it("desempata itens de mesmo total pelo nome", () => {
+    const series = montarSeriesDeItens(
       [
-        { produto: "OLEO C", ano: "2020", total: 1 },
-        { produto: "OLEO B", ano: "2020", total: 1 },
+        { nome: "OLEO C", ano: "2020", total: 1 },
+        { nome: "OLEO B", ano: "2020", total: 1 },
       ],
       ["2020"],
     );
