@@ -19,6 +19,9 @@ import type { NumerosDaOficina } from "./numerosDaOficina";
  */
 export const ANOS_NO_GRAFICO_MENSAL = 10;
 
+/** Linhas no gráfico de evolução do mix de produtos. */
+export const PRODUTOS_NO_GRAFICO_DE_MIX = 5;
+
 export interface PainelDeAnalises {
   base: BaseDeAnalise;
   contagens: ContagensDeInconsistencias;
@@ -59,11 +62,15 @@ export async function carregarPainel(
     trocasPorAnoEMes: analises.trocasPorAnoEMes(periodoDeUltimosAnos(hoje, ANOS_NO_GRAFICO_MENSAL)),
     trocasPorAno: analises.trocasPorAno(), // por ano é multi-anos por definição: o filtro não se aplica
     placasDistintasPorAno: analises.placasDistintasPorAno(),
+    novosERecorrentes: analises.novosERecorrentesPorAno(),
+    retornoDosNovos: analises.retornoDosNovosPorAno(),
+    produtosPorAno: analises.produtosPorAno(PRODUTOS_NO_GRAFICO_DE_MIX),
     faixasDeRetorno: analises.faixasDeRetorno(periodo),
     retornoPorAno: analises.retornoPorAno(),
     porDia: analises.resumoDeTrocas("dia", periodo),
     porMes: analises.resumoDeTrocas("mes", periodo),
     porAno: analises.resumoDeTrocas("ano", periodo),
+    porDiaDaSemana: analises.trocasPorDiaDaSemana(periodo),
     porMesHistorico: analises.resumoDeTrocas("mes"), // média mensal histórica do cartão, sempre completa
     retorno: analises.retornoDeClientes(periodo),
     sazonalidade: analises.sazonalidade(mesAtual), // multi-anos, como no BI antigo

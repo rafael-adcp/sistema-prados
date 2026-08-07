@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  DIAS_DA_SEMANA,
   FAIXAS_DE_RETORNO,
   mediaDe,
   mesIsoDe,
   mesmoMesDoAnoAnterior,
+  montarSeriesDeProdutos,
   montarSeriesPorAno,
   percentual,
   periodoDeUltimosAnos,
   resumoDosRetornos,
   rotuloDeMes,
   rotuloDeMesCalendario,
+  totaisPorDiaDaSemana,
   totaisPorFaixa,
 } from "./analises";
 
@@ -50,6 +53,50 @@ describe("faixas de retorno", () => {
       { faixa: 99, total: 5 },
     ]);
     expect(totais).toEqual([7, 0, 0, 0, 0, 0, 2]);
+  });
+});
+
+describe("dias da semana", () => {
+  it("traduz a numeração do SQLite (0 = domingo) para a semana começando na segunda", () => {
+    expect(DIAS_DA_SEMANA).toEqual(["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]);
+    const totais = totaisPorDiaDaSemana([
+      { dia: "0", total: 4 }, // domingo → última posição
+      { dia: "1", total: 7 }, // segunda → primeira
+      { dia: "6", total: 9 }, // sábado → penúltima
+    ]);
+    expect(totais).toEqual([7, 0, 0, 0, 0, 9, 4]);
+  });
+
+  it("ignora numerações fora de 0 a 6", () => {
+    expect(totaisPorDiaDaSemana([{ dia: "7", total: 5 }])).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+});
+
+describe("montarSeriesDeProdutos", () => {
+  it("uma série por produto, do mais usado ao menos usado, com 0 nos anos sem uso", () => {
+    const series = montarSeriesDeProdutos(
+      [
+        { produto: "OLEO B", ano: "2020", total: 2 },
+        { produto: "OLEO A", ano: "2020", total: 3 },
+        { produto: "OLEO A", ano: "2022", total: 4 },
+      ],
+      ["2020", "2021", "2022"],
+    );
+    expect(series).toEqual([
+      { nome: "OLEO A", pontos: [3, 0, 4] },
+      { nome: "OLEO B", pontos: [2, 0, 0] },
+    ]);
+  });
+
+  it("desempata produtos de mesmo total pelo nome", () => {
+    const series = montarSeriesDeProdutos(
+      [
+        { produto: "OLEO C", ano: "2020", total: 1 },
+        { produto: "OLEO B", ano: "2020", total: 1 },
+      ],
+      ["2020"],
+    );
+    expect(series.map((serie) => serie.nome)).toEqual(["OLEO B", "OLEO C"]);
   });
 });
 

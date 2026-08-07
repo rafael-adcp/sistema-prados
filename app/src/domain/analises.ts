@@ -86,6 +86,54 @@ export function totaisPorFaixa(linhas: { faixa: number; total: number }[]): numb
   return totais;
 }
 
+/** Semana começando na segunda: a leitura natural de escala de trabalho. */
+export const DIAS_DA_SEMANA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+/**
+ * Totais na ordem de DIAS_DA_SEMANA (dias sem registro contam 0). A entrada
+ * numera como o %w do SQLite — 0 = domingo … 6 = sábado.
+ */
+export function totaisPorDiaDaSemana(linhas: { dia: string; total: number }[]): number[] {
+  const totais = DIAS_DA_SEMANA.map(() => 0);
+  for (const linha of linhas) {
+    const domingoPrimeiro = Number(linha.dia);
+    if (domingoPrimeiro >= 0 && domingoPrimeiro <= 6) {
+      totais[(domingoPrimeiro + 6) % 7] = linha.total;
+    }
+  }
+  return totais;
+}
+
+export interface ProdutoEmUmAno {
+  produto: string;
+  ano: string;
+  total: number;
+}
+
+/**
+ * Uma série por produto, alinhada aos anos do eixo (anos sem uso contam 0).
+ * Produtos do mais usado ao menos usado, para a legenda listar nessa ordem.
+ */
+export function montarSeriesDeProdutos(
+  linhas: ProdutoEmUmAno[],
+  anos: string[],
+): { nome: string; pontos: number[] }[] {
+  const totalPorProduto = new Map<string, number>();
+  for (const linha of linhas) {
+    totalPorProduto.set(linha.produto, (totalPorProduto.get(linha.produto) ?? 0) + linha.total);
+  }
+  const produtos = [...totalPorProduto.entries()]
+    .sort(([nomeA, totalA], [nomeB, totalB]) =>
+      totalA !== totalB ? totalB - totalA : nomeA.localeCompare(nomeB),
+    )
+    .map(([nome]) => nome);
+  const totais = new Map(linhas.map((linha) => [`${linha.produto}|${linha.ano}`, linha.total]));
+  return produtos.map((produto) => ({
+    nome: produto,
+    pontos: anos.map((ano) => totais.get(`${produto}|${ano}`) ?? 0),
+  }));
+}
+
 export function mediaDe(valores: number[]): number | null {
   if (valores.length === 0) return null;
   return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;

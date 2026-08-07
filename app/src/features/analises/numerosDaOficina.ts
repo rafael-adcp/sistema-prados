@@ -1,9 +1,13 @@
 import type {
   ComparativoDoMes,
+  NovosERecorrentesNoAno,
   ProdutoMaisUsado,
+  ProdutoNoAno,
   RetornoDeClientes,
+  RetornoDosNovosNoAno,
   SazonalidadeDoMes,
   TotalPorAno,
+  TotalPorDiaDaSemana,
   TotalPorFaixa,
   TrocasPorAnoEMes,
 } from "../../data/analiseRepository";
@@ -21,6 +25,9 @@ export interface NumerosHistoricos {
   trocasPorAno: TotalPorAno[];
   placasDistintasPorAno: TotalPorAno[];
   retornoPorAno: RetornoNoAno[];
+  novosERecorrentes: NovosERecorrentesNoAno[];
+  retornoDosNovos: RetornoDosNovosNoAno[];
+  produtosPorAno: ProdutoNoAno[];
   /** Sempre sobre todos os anos, para o cartão de média mensal histórica. */
   porMesHistorico: ResumoMinMediaMax | null;
   sazonalidade: SazonalidadeDoMes[];
@@ -33,6 +40,7 @@ export interface IndicadoresDoAno {
   porDia: ResumoMinMediaMax | null;
   porMes: ResumoMinMediaMax | null;
   porAno: ResumoMinMediaMax | null;
+  porDiaDaSemana: TotalPorDiaDaSemana[];
   retorno: RetornoDeClientes;
   topProdutos: ProdutoMaisUsado[];
 }
@@ -41,6 +49,7 @@ export type NumerosDaOficina = NumerosHistoricos & IndicadoresDoAno;
 
 export const inteiro = (valor: number) => Math.round(valor).toLocaleString("pt-BR");
 export const emDias = (valor: number) => `${Math.round(valor).toLocaleString("pt-BR")} dias`;
+export const emPercentual = (valor: number) => `${Math.round(valor)}%`;
 
 export function referenciaDeMedia(totais: number[]): ReferenciaDoGrafico[] {
   const media = mediaDe(totais);

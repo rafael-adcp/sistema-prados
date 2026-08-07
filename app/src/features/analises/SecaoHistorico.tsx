@@ -3,13 +3,20 @@ import {
   MESES_ABREVIADOS,
   mesIsoDe,
   mesmoMesDoAnoAnterior,
+  montarSeriesDeProdutos,
   montarSeriesPorAno,
   rotuloDeMes,
   rotuloDeMesCalendario,
 } from "../../domain/analises";
 import { Grafico } from "../../ui/Grafico";
-import { ANOS_NO_GRAFICO_MENSAL } from "./carregarPainel";
-import { emDias, inteiro, referenciaDeMedia, type NumerosHistoricos } from "./numerosDaOficina";
+import { ANOS_NO_GRAFICO_MENSAL, PRODUTOS_NO_GRAFICO_DE_MIX } from "./carregarPainel";
+import {
+  emDias,
+  emPercentual,
+  inteiro,
+  referenciaDeMedia,
+  type NumerosHistoricos,
+} from "./numerosDaOficina";
 import { TabelaKpi } from "./TabelaKpi";
 
 interface Props {
@@ -45,6 +52,34 @@ export function SecaoHistorico({ numeros, hoje }: Props) {
       retornoMedio: {
         rotulosX: numeros.retornoPorAno.map((linha) => linha.ano),
         series: [{ nome: "Dias", pontos: numeros.retornoPorAno.map((linha) => linha.media) }],
+      },
+      novosERecorrentes: {
+        rotulosX: numeros.novosERecorrentes.map((linha) => linha.ano),
+        series: [
+          { nome: "Novos", pontos: numeros.novosERecorrentes.map((linha) => linha.novos) },
+          {
+            nome: "Já conhecidos",
+            pontos: numeros.novosERecorrentes.map((linha) => linha.recorrentes),
+          },
+        ],
+      },
+      // Cada carro estreante conta no ano da 1ª visita; novos nunca é 0 aqui,
+      // porque o ano só existe na série se algum carro estreou nele.
+      retornoDosNovos: {
+        rotulosX: numeros.retornoDosNovos.map((linha) => linha.ano),
+        series: [
+          {
+            nome: "% que voltou",
+            pontos: numeros.retornoDosNovos.map((linha) => (linha.voltaram / linha.novos) * 100),
+          },
+        ],
+      },
+      produtos: {
+        rotulosX: numeros.trocasPorAno.map((linha) => linha.ano),
+        series: montarSeriesDeProdutos(
+          numeros.produtosPorAno,
+          numeros.trocasPorAno.map((linha) => linha.ano),
+        ),
       },
     };
   }, [numeros, hoje, mesAtual]);
@@ -106,7 +141,30 @@ export function SecaoHistorico({ numeros, hoje }: Props) {
             resumo: linha,
           }))}
         />
+        <Grafico
+          titulo="Carros novos × já conhecidos, por ano"
+          tipo="linha"
+          rotulosX={graficos.novosERecorrentes.rotulosX}
+          series={graficos.novosERecorrentes.series}
+        />
+        <Grafico
+          titulo="% de carros novos que voltaram, por ano da 1ª visita"
+          tipo="linha"
+          rotulosX={graficos.retornoDosNovos.rotulosX}
+          series={graficos.retornoDosNovos.series}
+          formatarValor={emPercentual}
+        />
       </div>
+      <p className="texto-apoio">
+        No gráfico de carros novos que voltaram, os anos recentes ainda vão subir: os carros que
+        estrearam há pouco ainda estão dentro do prazo normal de retorno.
+      </p>
+      <Grafico
+        titulo={`Produtos mais usados ao longo dos anos — top ${PRODUTOS_NO_GRAFICO_DE_MIX}`}
+        tipo="linha"
+        rotulosX={graficos.produtos.rotulosX}
+        series={graficos.produtos.series}
+      />
     </div>
   );
 }

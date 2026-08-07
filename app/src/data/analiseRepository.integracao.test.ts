@@ -140,6 +140,46 @@ describe("números da oficina", () => {
     ]);
   });
 
+  // AAA e BBB estreiam em 2020; em 2021 o AAA volta (recorrente) e o CCC estreia.
+  it("novos e recorrentes por ano somam os carros distintos do ano", async () => {
+    expect(await analises.novosERecorrentesPorAno()).toEqual([
+      { ano: "2020", novos: 2, recorrentes: 0 },
+      { ano: "2021", novos: 1, recorrentes: 1 },
+    ]);
+  });
+
+  // Dos novos de 2020, só AAA voltou; CCC (2021) tem 2 lançamentos no MESMO dia,
+  // que não contam como retorno — o critério é serviço em outra data.
+  it("retorno dos novos: quantos estreantes de cada ano voltaram depois", async () => {
+    expect(await analises.retornoDosNovosPorAno()).toEqual([
+      { ano: "2020", novos: 2, voltaram: 1 },
+      { ano: "2021", novos: 1, voltaram: 0 },
+    ]);
+  });
+
+  // 2020-01-10 sexta, 2020-03-10 terça (2×), 2021-01-10 domingo, 2021-05-20 quinta (2×).
+  it("trocas por dia da semana na numeração do SQLite (0 = domingo)", async () => {
+    expect(await analises.trocasPorDiaDaSemana()).toEqual([
+      { dia: "0", total: 1 },
+      { dia: "2", total: 2 },
+      { dia: "4", total: 2 },
+      { dia: "5", total: 1 },
+    ]);
+    expect(await analises.trocasPorDiaDaSemana({ deAno: "2020", ateAno: "2020" })).toEqual([
+      { dia: "2", total: 2 },
+      { dia: "5", total: 1 },
+    ]);
+  });
+
+  // Top global: OLEO A (4 usos) e, no empate entre B e C, o alfabético OLEO B.
+  it("produtos por ano limita ao top global e conta cada ano", async () => {
+    expect(await analises.produtosPorAno(2)).toEqual([
+      { produto: "OLEO A", ano: "2020", total: 3 },
+      { produto: "OLEO A", ano: "2021", total: 1 },
+      { produto: "OLEO B", ano: "2021", total: 1 },
+    ]);
+  });
+
   it("o filtro de período restringe as agregações", async () => {
     const periodo = { deAno: "2020", ateAno: "2020" };
     expect(await analises.trocasPorAno(periodo)).toEqual([{ ano: "2020", total: 3 }]);

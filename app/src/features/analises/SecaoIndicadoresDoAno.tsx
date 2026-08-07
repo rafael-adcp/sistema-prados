@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import {
+  DIAS_DA_SEMANA,
   FAIXAS_DE_RETORNO,
   percentual,
   resumoDosRetornos,
+  totaisPorDiaDaSemana,
   totaisPorFaixa,
   type RetornoNoAno,
 } from "../../domain/analises";
@@ -40,6 +42,13 @@ export function SecaoIndicadoresDoAno({
       series: [{ nome: "Retornos", pontos: totaisPorFaixa(indicadores.faixasDeRetorno) }],
     }),
     [indicadores.faixasDeRetorno],
+  );
+
+  const diasDaSemana = useMemo(
+    () => ({
+      series: [{ nome: "Trocas", pontos: totaisPorDiaDaSemana(indicadores.porDiaDaSemana) }],
+    }),
+    [indicadores.porDiaDaSemana],
   );
 
   const { retorno } = indicadores;
@@ -82,6 +91,12 @@ export function SecaoIndicadoresDoAno({
           tipo="barra"
           rotulosX={faixas.rotulosX}
           series={faixas.series}
+        />
+        <Grafico
+          titulo={`Trocas por dia da semana — ${rotuloDoAno}`}
+          tipo="barra"
+          rotulosX={DIAS_DA_SEMANA}
+          series={diasDaSemana.series}
         />
         <TabelaTopProdutos titulo={`Produtos mais usados — ${rotuloDoAno}`} linhas={indicadores.topProdutos} />
       </div>

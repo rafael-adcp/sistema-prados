@@ -89,6 +89,12 @@ describe("números", () => {
 
     expect(screen.getByText("Total de trocas por ano")).toBeInTheDocument();
     expect(screen.getByText(/em quanto tempo os carros voltam/i)).toBeInTheDocument();
+    expect(screen.getByText("Carros novos × já conhecidos, por ano")).toBeInTheDocument();
+    expect(
+      screen.getByText("% de carros novos que voltaram, por ano da 1ª visita"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/produtos mais usados ao longo dos anos/i)).toBeInTheDocument();
+    expect(screen.getByText(/trocas por dia da semana/i)).toBeInTheDocument();
     // No recorte padrão (ano atual) o AAA0001 tem 1 visita só: ainda não "voltou".
     expect(screen.getByText(/carros que voltam/i).closest("div")).toHaveTextContent("0%");
   });

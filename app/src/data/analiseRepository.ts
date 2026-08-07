@@ -48,6 +48,30 @@ export interface ProdutoMaisUsado {
   total: number;
 }
 
+export interface NovosERecorrentesNoAno {
+  ano: string;
+  novos: number;
+  recorrentes: number;
+}
+
+export interface RetornoDosNovosNoAno {
+  ano: string;
+  novos: number;
+  voltaram: number;
+}
+
+export interface TotalPorDiaDaSemana {
+  /** Como o %w do SQLite: "0" = domingo … "6" = sábado. */
+  dia: string;
+  total: number;
+}
+
+export interface ProdutoNoAno {
+  produto: string;
+  ano: string;
+  total: number;
+}
+
 export type AgrupamentoDeTrocas = "dia" | "mes" | "ano";
 
 const EXPRESSAO_DO_AGRUPAMENTO: Record<AgrupamentoDeTrocas, string> = {
@@ -250,6 +274,74 @@ export class AnaliseRepository {
       mesAtual: linhas[0]?.mes_atual ?? 0,
       mesAnoPassado: linhas[0]?.mes_ano_passado ?? 0,
     };
+  }
+
+  /**
+   * Carros na primeira visita da vida vs. já conhecidos, por ano. O mesmo
+   * carro conta uma vez por ano, como em placasDistintasPorAno — as duas
+   * parcelas de um ano somam exatamente aquele total. No primeiro ano da
+   * base todo carro é "novo" por definição.
+   */
+  async novosERecorrentesPorAno(): Promise<NovosERecorrentesNoAno[]> {
+    return this.db.select<NovosERecorrentesNoAno[]>(
+      `SELECT ano,
+              SUM(CASE WHEN ano = primeiro_ano THEN 1 ELSE 0 END) AS novos,
+              SUM(CASE WHEN ano > primeiro_ano THEN 1 ELSE 0 END) AS recorrentes
+       FROM (
+         SELECT ano, MIN(ano) OVER (PARTITION BY placa) AS primeiro_ano
+         FROM (SELECT DISTINCT substr(data, 1, 4) AS ano, placa
+               FROM servicos WHERE ${BASE} AND placa <> '')
+       )
+       GROUP BY ano ORDER BY ano`,
+    );
+  }
+
+  /**
+   * Dos carros que estrearam em cada ano, quantos voltaram alguma vez depois
+   * (serviço em outra data, mesmo que no mesmo ano). Lançamentos duplicados
+   * no mesmo dia não contam como retorno — o critério dos intervalos.
+   */
+  async retornoDosNovosPorAno(): Promise<RetornoDosNovosNoAno[]> {
+    return this.db.select<RetornoDosNovosNoAno[]>(
+      `SELECT substr(primeira, 1, 4) AS ano,
+              COUNT(*) AS novos,
+              SUM(CASE WHEN datas > 1 THEN 1 ELSE 0 END) AS voltaram
+       FROM (
+         SELECT MIN(data) AS primeira, COUNT(DISTINCT data) AS datas
+         FROM servicos WHERE ${BASE} AND placa <> ''
+         GROUP BY placa
+       )
+       GROUP BY ano ORDER BY ano`,
+    );
+  }
+
+  async trocasPorDiaDaSemana(periodo?: PeriodoDeAnos): Promise<TotalPorDiaDaSemana[]> {
+    const filtro = this.filtroDaBase(periodo);
+    return this.db.select<TotalPorDiaDaSemana[]>(
+      `SELECT strftime('%w', data) AS dia, COUNT(*) AS total
+       FROM servicos WHERE ${filtro.where}
+       GROUP BY dia ORDER BY dia`,
+      filtro.parametros,
+    );
+  }
+
+  /**
+   * Contagem por ano dos produtos mais usados de toda a base (top `limite`).
+   * O top é global de propósito: as mesmas linhas atravessam todos os anos e
+   * mostram o mix migrando — um top por ano trocaria as linhas no meio.
+   */
+  async produtosPorAno(limite: number): Promise<ProdutoNoAno[]> {
+    return this.db.select<ProdutoNoAno[]>(
+      `WITH top AS (
+         SELECT produto FROM servicos WHERE ${BASE} AND produto <> ''
+         GROUP BY produto ORDER BY COUNT(*) DESC, produto LIMIT $1
+       )
+       SELECT produto, substr(data, 1, 4) AS ano, COUNT(*) AS total
+       FROM servicos
+       WHERE ${BASE} AND produto IN (SELECT produto FROM top)
+       GROUP BY produto, ano ORDER BY ano, produto`,
+      [limite],
+    );
   }
 
   async topProdutos(limite: number, periodo?: PeriodoDeAnos): Promise<ProdutoMaisUsado[]> {
